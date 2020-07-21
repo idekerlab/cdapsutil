@@ -6,6 +6,7 @@ import logging
 import json
 import math
 import time
+import ndex2
 from ndex2.nice_cx_network import NiceCXNetwork
 
 LOGGER = logging.getLogger(__name__)
@@ -273,3 +274,16 @@ class CommunityDetection(object):
         for node_id, node_obj in net_cx.get_nodes():
             node_dict[node_id] = node_obj['n']
         return node_dict
+
+    @staticmethod
+    def apply_style(cx_network,
+                    style='default_style.cx'):
+        """
+        Applies default hierarchy style to network
+
+        :param cx_network:
+        :return:
+        """
+        cx_network.apply_style_from_network(
+            ndex2.create_nice_cx_from_file(os.path.join(os.path.dirname(__file__),
+                                                        style)))
