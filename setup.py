@@ -37,6 +37,8 @@ setup(
     ],
     package_dir={'cdapsutil':
                  'cdapsutil'},
+    data_files=[('style', ['cdapsutil/default_style.cx']),
+                ],
     include_package_data=True,
     install_requires=requirements,
     license="BSD license",
