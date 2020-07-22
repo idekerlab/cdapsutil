@@ -246,8 +246,40 @@ class CommunityDetection(object):
                                         name='CD_AnnotatedMembers_Overlap', values=0.0,
                                         type='double')
 
+        self._add_custom_annotations(net_cx=hier_net,
+                                     nodes_dict=cluster_nodes_dict,
+                                     res_as_json=res_as_json)
         return hier_net
 
+    def _add_custom_annotations(self, net_cx=None,
+                                nodes_dict=None,
+                                res_as_json=None):
+        """
+        Adds any custom annotations to nodes from community
+        detection result which would be stored under 'nodeAttributesAsCX2'
+        and 'nodes' under 'result' of json
+        :param net_cx:
+        :param res_as_json:
+        :return:
+        """
+        if 'nodeAttributesAsCX2' not in res_as_json:
+            return
+        node_alias_dict = dict()
+        for entry in res_as_json['nodeAttributesAsCX2']['attributeDeclarations']:
+            if 'nodes' in entry:
+                for key in entry['nodes'].keys():
+                    node_alias_dict[entry['nodes'][key]['a']] = (key,
+                                                                 entry['nodes'][key]['v'],
+                                                                 entry['nodes'][key]['d'])
+
+        for entry in res_as_json['nodeAttributesAsCX2']['nodes']:
+            node_id = nodes_dict[entry['id']]
+            for n_alias in entry['v'].keys():
+                attr_name, attr_value, attr_type = node_alias_dict[n_alias]
+                net_cx.add_node_attribute(property_of=node_id,
+                                          name=attr_name,
+                                          values=entry['v'][n_alias],
+                                          type=attr_type)
 
     @staticmethod
     def write_edge_list(net_cx, tempdir):
