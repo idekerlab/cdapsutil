@@ -7,7 +7,6 @@ import json
 import math
 import time
 import tempfile
-import multiprocessing
 import shutil
 from multiprocessing import Pool
 import ndex2
