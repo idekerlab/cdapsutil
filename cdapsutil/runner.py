@@ -94,7 +94,7 @@ class ServiceRunner(object):
                           parameters should all be of type :py:class:`str`
                           If custom parameter is just a flag set
                           value to ``None``
-                          Example: ``{'--flag': None, '--cutoff': '0.2'}
+                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :type arguments: dict
         :return: task id in this format ``{'id': '<TASK ID'}``
         :rtype: dict
