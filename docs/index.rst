@@ -13,7 +13,7 @@ Contents:
 
    readme
    installation
-   usage
+   quicktutorial
    modules
    contributing
    history
