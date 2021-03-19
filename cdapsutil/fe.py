@@ -147,21 +147,25 @@ class FunctionalEnrichment(object):
 
         return net_cx
 
-    def run_functional_enrichment(self, net_cx, docker_image=None,
+    def run_functional_enrichment(self, net_cx, algo_or_docker=None,
                                   temp_dir=None,
                                   arguments=None,
                                   numthreads=2,
                                   max_gene_list=500,
-                                  disable_tqdm=False):
+                                  disable_tqdm=False,
+                                  via_service=False):
         """
 
         :param net_cx:
-        :param docker_image:
+        :param algo_or_docker:
         :param temp_dir:
         :return:
         """
-        if docker_image is None:
+        if algo_or_docker is None:
             raise CommunityDetectionError('Docker image cannot be None')
+
+        if via_service is not None and via_service is True:
+            raise CommunityDetectionError('Functional enrichment via service not supported')
 
         num_nodes = len(net_cx.get_nodes())
         counter = 0
@@ -190,7 +194,7 @@ class FunctionalEnrichment(object):
                 cmd_dict = {'index': counter,
                             'node_id': node_id,
                             'outfile': os.path.join(tempdir, str(counter) + '.out'),
-                            'image': docker_image,
+                            'image': algo_or_docker,
                             'arguments': full_args,
                             'temp_dir': tempdir,
                             'docker_runner': self._docker}
@@ -214,7 +218,7 @@ class FunctionalEnrichment(object):
                     res = json.load(f)
 
                 if res['e_code'] is 0 and len(res['out']) > 0:
-                    self._update_network_with_result(docker_image, gene_list,
+                    self._update_network_with_result(algo_or_docker, gene_list,
                                                      net_cx, docker_cmd['node_id'],
                                                      res['out'], custom_params=arguments)
                 else:
