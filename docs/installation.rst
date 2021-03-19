@@ -5,20 +5,27 @@ Installation
 ============
 
 
-Stable release
---------------
+From Pypi
+------------
 
-To install CDAPS Python Utilities, run this command in your terminal:
+Coming soon...
 
-.. code-block:: console
+..
+    Stable release
+    --------------
 
-    $ pip install cdapsutil
 
-If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-you through the process.
+    To install CDAPS Python Utilities, run this command in your terminal:
 
-.. _pip: https://pip.pypa.io
-.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
+    .. code-block:: console
+
+        $ pip install cdapsutil
+
+    If you don't have `pip`_ installed, this `Python installation guide`_ can guide
+    you through the process.
+
+    .. _pip: https://pip.pypa.io
+    .. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
 
 
 From sources
