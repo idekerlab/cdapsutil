@@ -2,6 +2,16 @@
 Usage
 =====
 
-To use CDAPS Python Utilities in a project::
+Example run of Community Detection::
 
-    import cdapsutil
+
+
+    from cdapsutil.cd import CommunityDetection
+
+    cd = CommunityDetection()
+
+
+Example run of Functional Enrichment::
+
+    from cdapsutil.cd import FunctionalEnrichment
+
