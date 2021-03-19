@@ -1,194 +1,194 @@
 # -*- coding: utf-8 -*-
 
 import os
-import subprocess
 import logging
 import json
 import math
-import time
-import tempfile
-import shutil
-from multiprocessing import Pool
+from json.decoder import JSONDecodeError
 import ndex2
 from ndex2.nice_cx_network import NiceCXNetwork
-from tqdm import tqdm
-
+from cdapsutil.runner import DockerRunner
+from cdapsutil.runner import ServiceRunner
+from cdapsutil.exceptions import CommunityDetectionError
 
 LOGGER = logging.getLogger(__name__)
 
 
-def cur_time_in_seconds():
-    return int(round(time.time()))
-
-
-def run_functional_enrichment_docker(docker_dict):
-    """
-    Function that runs docker dumping results to
-    file path specified by docker_dict['outfile']
-
-    {'index': counter,
-     'node_id': node_id,
-     'outfile': <output file, must be in temp_dir>,
-     'image': <docker_image>,
-     'arguments': <list of arguments>,
-     'temp_dir': <temp directory where input data resides and output will be written>,
-     'docker_runner': <instance of DockerRunner class>}
-
-    :param docker_dict: {'outfile': <PATH WHERE OUTPUT RESULT SHOULD BE WRITTEN>}
-    :type docker_dict: dict
-    :return: None
-
-    """
-    start_time = cur_time_in_seconds()
-    e_code, out, err = docker_dict['docker_runner'].run_docker(docker_image=docker_dict['image'],
-                                                               temp_dir=docker_dict['temp_dir'],
-                                                               arguments=docker_dict['arguments'])
-    res = dict()
-    res['e_code'] = e_code
-    res['out'] = out.decode('utf-8')
-    res['err'] = err.decode('utf-8')
-    res['elapsed_time'] = cur_time_in_seconds() - start_time
-    with open(docker_dict['outfile'], 'w') as f:
-        json.dump(res, f)
-
-
-class CommunityDetectionError(Exception):
-    """
-    Base class for CommunityDetection Errors
-    """
-    pass
-
-
-class DockerRunner(object):
-    """
-    Wrapper to run Docker containers
-    """
-    def __init__(self):
-        """
-        Constructor
-        """
-        pass
-
-    def run_docker(self, docker_image=None, arguments=None,
-                   temp_dir=None):
-        """
-        Runs docker command returning a tuple
-        with error code, standard out and standard error
-
-        :param docker_image: docker image to run
-        :type docker_image: str
-        :param arguments: list of arguments
-        :type arguments: list
-        :param temp_dir: temporary directory where docker can be run
-                         this should be a directory that docker can
-                         access when `-v X:X` flag is added to docker
-                         command
-        :type temp_dir: str
-        :return:
-        """
-        full_args = ['docker', 'run',
-                     '--rm', '-v',
-                     temp_dir + ':' +
-                     temp_dir,
-                     docker_image]
-        full_args.extend(arguments)
-        start_time = cur_time_in_seconds()
-        try:
-            return self._run_docker_cmd(full_args)
-        finally:
-            LOGGER.debug('Running ' +
-                         ' '.join(full_args) +
-                         ' took ' +
-                         str(cur_time_in_seconds() - start_time) +
-                         ' seconds')
-
-    def _run_docker_cmd(self, cmd):
-        """
-        Runs docker
-
-        :param cmd_to_run: command to run as list
-        :return:
-        """
-
-        p = subprocess.Popen(cmd,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-
-        out, err = p.communicate()
-
-        return p.returncode, out, err
+REST_ENDPOINT = 'http://cdservice.cytoscape.org/cd/' \
+                       'communitydetection/v1'
+"""
+Default REST endpoint
+"""
 
 
 class CommunityDetection(object):
     """
     Runs Community Detection Algorithms packaged as
-    Docker containers built for CDAPS service
+    `Docker <https://www.docker.com/>`_ containers built for
+    `CDAPS service <https://cdaps.readthedocs.io/>`_ locally or remotely
 
     """
-    def __init__(self):
+
+    def __init__(self,
+                 service=ServiceRunner(service_endpoint=REST_ENDPOINT),
+                 docker=DockerRunner()):
         """
         Constructor
-        """
-        self._docker = DockerRunner()
 
-    def set_alternate_docker_runner(self, docker_runner):
+        :param service: Object used to run CommunityDetection via
+                        CDAPS REST service
+        :type service: :py:class:`~cdapsutil.runner.ServiceRunner`
+        :param docker: Object used to run CommunityDetection via locally
+                       installed Docker
+        :type docker: :py:class:`~cdapsutil.runner.DockerRunner`
+        :raises CommunityDetectionError: If `service` or `docker` is ``None``
         """
+        if docker is None:
+            raise CommunityDetectionError('docker is None')
+        self._docker = docker
 
-        :param docker_runner:
-        :return:
-        """
-        self._docker = docker_runner
+        if service is None:
+            raise CommunityDetectionError('service is None')
+        self._service = service
 
-    def run_community_detection(self, net_cx, docker_image=None,
+    def run_community_detection(self, net_cx, algo_or_docker=None,
                                 temp_dir=None,
-                                arguments=None):
+                                arguments=None,
+                                via_service=False,
+                                max_retries=600,
+                                poll_interval=1):
         """
+        Runs community detection on **net_cx** network. The result
+        is a new hierarchy network.
 
-        :param net_cx:
-        :param docker_image:
-        :param temp_dir:
-        :return:
+        This method can run the community detection algorithm denoted
+        by the **algo_or_docker** parameter via two ways.
+
+        If **via_service** parameter is ``True`` then the algorithm is
+        run remotely on `CDAPS REST service <https://cdaps.readthedocs.io/>`_
+        denoted in the constructor. In this case **algo_or_docker**
+        should be set to the name of the algorithm to run.
+
+        If **via_service** parameter is ``False`` or ``None`` then
+        algorithm is run via `Docker <https://www.docker.com/>`_
+        locally. In this case **algo_or_docker** parameter should be set to
+        the name of the `Docker <https://www.docker.com/>`_ image.
+
+        :param net_cx: network to run community detection on
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param algo_or_docker: name of algorithm if **via_service** parameter
+                               is ``True``, otherwise name of Docker image
+                               (ie ``coleslawndex/cdhidef:0.1.0``)
+        :type algo_or_docker: str
+        :param temp_dir: path to temporary directory, which if running
+                         locally via `Docker <https://www.docker.com/>`_
+                         must be a path that can be seen by the
+                         `Docker <https://www.docker.com/>`_ with
+                         ``-v`` parameter
+        :type temp_dir: str
+        :param arguments: flags to pass to algorithm. Should be in format
+                          where key is parameter name and value is parameter
+                          value. For flags this value should be ``None``
+        :type arguments: dict
+        :param via_service: If ``True`` algorithm will be run on
+                            remote service. Otherwise algorithm will be
+                            run locally utilizing local install of
+                            `Docker <https://www.docker.com/>`_
+        :type via_service: bool
+        :param max_retries: Number of times to check for task completion when
+                            `via_service` is set to ``True``
+        :type max_retries: int
+        :param poll_interval: Time to wait in seconds between checks for task
+                              completion when `via_service` is set to ``True``
+        :type poll_interval: int
+        :raises CommunityDetectionError: If there was an error running the
+                                         algorithm
+        :return: Hierarchy network generated
+        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         """
-        edgelist = CommunityDetection.write_edge_list(net_cx, temp_dir)
-        full_args = [os.path.abspath(edgelist)]
+        if via_service is None or via_service is False:
+            edgelist = CommunityDetection._write_edge_list(net_cx, temp_dir)
+            full_args = {os.path.abspath(edgelist): None}
 
-        if arguments is not None:
-            full_args.extend(arguments)
+            if arguments is not None:
+                full_args.update(arguments)
+            algo_name = algo_or_docker[algo_or_docker.index('/') + 1:]
+            e_code, out, err = self._docker.run(algorithm=algo_or_docker,
+                                                arguments=full_args,
+                                                temp_dir=temp_dir)
+            if e_code != 0:
+                raise CommunityDetectionError('Non-zero exit code from '
+                                              'algorithm: ' +
+                                              str(e_code) + ' : ' + str(err) +
+                                              ' : ' + str(out))
+        else:
+            edgelist = CommunityDetection._get_edge_list(net_cx)
+            algo_name = algo_or_docker
+            task_id = self._service.submit(algorithm=algo_name, data=edgelist,
+                                           arguments=arguments)['id']
+            LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
+            self._service.wait_for_task_to_complete(task_id,
+                                                    max_retries=max_retries,
+                                                    poll_interval=poll_interval)
+            resp_as_json = self._service.get_result(task_id)
+            if resp_as_json['status'] != 'complete':
+                CommunityDetectionError('Error running algorithm. '
+                                        'Raw JSON: ' +
+                                        str(resp_as_json))
+            out = resp_as_json['result']
+        LOGGER.debug(str(task_id) + ' completed. Generating hierarchy')
+        clusters_dict,\
+            children_dict,\
+            res_as_json = self.\
+            _derive_hierarchy_from_result(result=out)
 
-        e_code, out, err = self._docker.run_docker(docker_image=docker_image,
-                                                   arguments=full_args,
-                                                   temp_dir=temp_dir)
+        flattened_dict = \
+            self._flatten_children_dict(clusters_dict=clusters_dict,
+                                        children_dict=children_dict)
 
-        algo_name = docker_image[docker_image.index('/') + 1:]
-
-        hier_net = self.create_network_from_result(docker_image=docker_image,
-                                                   algo_name=algo_name,
-                                                   net_cx=net_cx, result=out,
-                                                   arguments=arguments)
+        hier_net = self._create_network(docker_image=algo_or_docker,
+                                        algo_name=algo_name,
+                                        net_cx=net_cx,
+                                        cluster_members=flattened_dict,
+                                        clusters_dict=clusters_dict,
+                                        res_as_json=res_as_json,
+                                        arguments=arguments)
+        CommunityDetection._apply_style(hier_net)
 
         return hier_net
 
-    def create_hierarchy_network(self, docker_image=None,
-                                 algo_name=None,
-                                 source_network=None,
-                                 arguments=None):
+    def _create_empty_hierarchy_network(self, docker_image=None,
+                                        algo_name=None,
+                                        source_network=None,
+                                        arguments=None):
+        """
+        Creates an empty hierarchy network with appropriate network attributes
+
+        :param docker_image: docker image, used to set value
+                             `prov:wasGeneratedBy`
+                             network attribute
+        :type docker_image: str
+        :param algo_name: name of algorithm, used in `description` network
+                          attribute
+        :type algo_name: str
+        :param source_network: source network, name is used to set name of
+                               network returned by this method
+        :type source_network: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :return: empty network except for network attributes
+        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         """
 
-        :param docker_image:
-        :param algo_name:
-        :param source_network:
-        :return:
-        """
-
-        if arguments is None:
-            cust_params = ''
-        else:
-            cust_params = ' '.join(arguments)
+        cust_params = ''
+        if arguments is not None:
+            for a in arguments.keys():
+                cust_params += a + ' '
+                if arguments[a] is not None:
+                    cust_params += arguments[a] + ' '
 
         hier_net = NiceCXNetwork()
         hier_net.set_name(algo_name + '_(none)_' + source_network.get_name())
         hier_net.set_network_attribute('__CD_OriginalNetwork',
-                                       values=0, type='long')
+                                       values='0', type='long')
         hier_net.set_network_attribute('description',
                                        values='Original network: ' +
                                               source_network.get_name() +
@@ -208,28 +208,83 @@ class CommunityDetection(object):
                                               'Docker image: ' + docker_image)
         return hier_net
 
-    def create_network_from_result(self, docker_image=None,
-                                   algo_name=None,
-                                   net_cx=None,
-                                   result=None,
-                                   arguments=None):
+    def _flatten_children_dict(self, clusters_dict=None, children_dict=None):
         """
+        An issue with the children_dict is that only immediate members of that
+        cluster are listed. This method examines all the children clusters
+        and adds their members to each cluster.
 
-        :param docker_image:
-        :param algo_name:
-        :param net_cx:
-        :param result:
-        :return:
+        :param clusters_dict: dictionary where key is cluster node id and value
+                              is a set of direct children clusters
+        :param children_dict: dictionary where key is parent node id and
+                              value is a set of children node ids
+        :type children_dict: dict
+        :return: dictionary where key is cluster node id and value is set of
+                 all members for that cluster which includes members of any
+                 children clusters
+        :rtype: dict
         """
-        res_as_json = json.loads(result)
-        node_dict = CommunityDetection.get_node_dictionary(net_cx)
+        flattened_dict = dict()
+
+        # iterate through all the clusters
+        for key in sorted(clusters_dict.keys()):
+            flattened_dict[key] = set()
+            subclusters_to_check = set()
+
+            # for this cluster add all immediate children to
+            # subclusters_to_check
+            subclusters_to_check.update(clusters_dict[key])
+
+            # add any immediate children members to flatten_dict
+            if key in children_dict and children_dict[key] is not None:
+                flattened_dict[key].update(children_dict[key])
+
+            # this loop iterates over the children clusters in
+            # subclusters_to_check adding any additional children
+            # clusters encountered. At the same time children members
+            # are added to the flattend_dict[key] until no more
+            # clusters are found
+            while len(subclusters_to_check) > 0:
+                subsubcluster = subclusters_to_check.pop()
+                if subsubcluster in children_dict:
+                    val = children_dict[subsubcluster]
+                    if val is not None:
+                        flattened_dict[key].update(val)
+                if subsubcluster is not None and subsubcluster in clusters_dict:
+                    subclusters_to_check.update(clusters_dict[subsubcluster])
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('Flattened dict size: ' + str(len(flattened_dict)))
+            for key in flattened_dict:
+                LOGGER.debug(str(key) + ' => ' + str(flattened_dict[key]))
+        return flattened_dict
+
+    def _derive_hierarchy_from_result(self, result=None):
+        """
+        Given result output in either old or new result format
+        this method creates two dictionaries. One holding relationship
+        of parent to children nodes and the other to nodes to member nodes
+
+        :param result:
+        :return: (map of cluster node id to set of children node ids,
+                  map of cluster node id to set of member node ids)
+        :rtype: tuple
+        """
+        try:
+            res_as_json = json.loads(result)
+        except JSONDecodeError as je:
+            LOGGER.debug('caught jsondecode error: ' + str(je))
+            if isinstance(result, str):
+                res_as_json = {'communityDetectionResult': result}
+            else:
+                res_as_json = {'communityDetectionResult': result.decode('utf-8')}
         hier_list = res_as_json['communityDetectionResult']
-        cluster_genes_dict = dict()
-        hier_net = self.create_hierarchy_network(docker_image=docker_image,
-                                                 algo_name=algo_name,
-                                                 source_network=net_cx,
-                                                 arguments=arguments)
-        cluster_nodes_dict = dict()
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug(str(hier_list))
+
+        clusters_dict = dict()
+        children_dict = dict()
         for line in hier_list.split(';'):
             splitline = line.split(',')
             if len(splitline) != 3:
@@ -238,50 +293,138 @@ class CommunityDetection(object):
             target = int(splitline[1])
             relationship = splitline[2]
             if relationship[2] == 'm':
-                if source not in cluster_genes_dict:
-                    cluster_genes_dict[source] = []
-                cluster_genes_dict[source].append(node_dict[target])
+                if source not in clusters_dict:
+                    clusters_dict[source] = set()
+                if source not in children_dict:
+                    children_dict[source] = set()
+                children_dict[source].add(target)
             else:
-                if source not in cluster_nodes_dict:
-                    node_id = hier_net.create_node('C' + str(source))
-                    cluster_nodes_dict[source] = node_id
+                if source not in clusters_dict:
+                    clusters_dict[source] = set()
+                clusters_dict[source].add(target)
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('clusters_dict size: ' + str(len(clusters_dict)))
+            LOGGER.debug('children dict size: ' + str(len(children_dict)))
+            clust_keys = sorted(clusters_dict.keys())
+            for key in sorted(children_dict.keys()):
+                if key not in clust_keys:
+                    LOGGER.debug(str(key) + ' not in children')
+            for key in sorted(clusters_dict.keys()):
+                LOGGER.debug('Cluster ' + str(key) + ' => ' + str(clusters_dict[key]))
+                if key in children_dict:
+                    LOGGER.debug('\tChildren ' + str(children_dict[key]))
+                else:
+                    LOGGER.debug('\tChildren => None')
+
+        return clusters_dict, children_dict, res_as_json
+
+    def _create_network(self, docker_image=None,
+                        algo_name=None,
+                        net_cx=None,
+                        cluster_members=None,
+                        clusters_dict=None,
+                        res_as_json=None,
+                        arguments=None):
+        """
+        Takes `result` output from docker and source network `net_cx` to
+        create a complete hierarchy that is similar to result from
+        CDAPS Cytoscape App
+
+        :param docker_image: docker image
+        :type docker_image: str
+        :param algo_name: name of algorithm
+        :type algo_name: str
+        :param net_cx: source parent network
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param result: JSON data of result from running docker image
+        :type result: str
+        :param arguments: user arguments passed to docker
+        :type arguments: list
+        :return: complete hierarchy network that is similar to the one
+                 generated in CDAPS Cytoscape App
+        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        """
+
+        node_dict = CommunityDetection._get_node_dictionary(net_cx)
+        hier_net = self._create_empty_hierarchy_network(docker_image=docker_image,
+                                                        algo_name=algo_name,
+                                                        source_network=net_cx,
+                                                        arguments=arguments)
+
+        # this is a map of cluster id => node id in hierarchy network
+        cluster_nodes_dict = dict()
+
+        # create nodes for clusters
+        for source in clusters_dict:
+            if source not in cluster_nodes_dict:
+                node_id = hier_net.create_node('C' + str(source))
+                cluster_nodes_dict[source] = node_id
+            for target in clusters_dict[source]:
                 if target not in cluster_nodes_dict:
                     node_id = hier_net.create_node('C' + str(target))
                     cluster_nodes_dict[target] = node_id
-                hier_net.create_edge(edge_source=cluster_nodes_dict[target],
-                                     edge_target=cluster_nodes_dict[source])
+                # create edge connecting clusters
+                hier_net.create_edge(edge_source=cluster_nodes_dict[source],
+                                     edge_target=cluster_nodes_dict[target])
 
+        # create dict where key is cluster node id and value
+        # is a set of member node names storing them in updated_nodes_dict
         updated_nodes_dict = dict()
-        for node in cluster_genes_dict.keys():
-            updated_nodes_dict[cluster_nodes_dict[node]] = cluster_genes_dict[node]
+        for node in cluster_members.keys():
+            mem_set = set()
+            for cnode in cluster_members[node]:
+                mem_set.add(node_dict[cnode])
+            updated_nodes_dict[cluster_nodes_dict[node]] = mem_set
 
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('updated_nodes_dict: ' + str(updated_nodes_dict))
+
+        # iterate through all the nodes in the hierarchy and add the member
+        # nodes along with necessary statistics
         for node_id, node_obj in hier_net.get_nodes():
             if node_id in updated_nodes_dict:
                 member_list_size = len(updated_nodes_dict[node_id])
                 member_list = ' '.join(updated_nodes_dict[node_id])
+                member_list_logsize = math.log(member_list_size) / math.log(2)
             else:
                 member_list_size = 0
                 member_list = ''
+                member_list_logsize = 0
+
             hier_net.add_node_attribute(property_of=node_id,
                                         name='CD_MemberList',
                                         values=member_list)
             hier_net.add_node_attribute(property_of=node_id,
                                         name='CD_MemberList_Size',
-                                        values=member_list_size,
+                                        values=str(member_list_size),
                                         type='integer')
             hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_Labeled', values=False,
+                                        name='CD_Labeled', values=str(False),
                                         type='boolean')
             hier_net.add_node_attribute(property_of=node_id,
                                         name='CD_MemberList_LogSize',
-                                        values=math.log(member_list_size) / math.log(2),
+                                        values=str(member_list_logsize),
                                         type='double')
             hier_net.add_node_attribute(property_of=node_id,
                                         name='CD_CommunityName', values='')
             hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_AnnotatedMembers_Overlap', values=0.0,
+                                        name='CD_AnnotatedMembers', values='')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers_Size',
+                                        values=str(0),
+                                        type='integer')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers_Overlap',
+                                        values=str(0.0),
+                                        type='double')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers_Pvalue',
+                                        values=str(0.0),
                                         type='double')
 
+        # using raw JSON output add any custom annotations.
+        # Currently used by HiDeF
         self._add_custom_annotations(net_cx=hier_net,
                                      nodes_dict=cluster_nodes_dict,
                                      res_as_json=res_as_json)
@@ -294,36 +437,46 @@ class CommunityDetection(object):
         Adds any custom annotations to nodes from community
         detection result which would be stored under 'nodeAttributesAsCX2'
         and 'nodes' under 'result' of json
+
         :param net_cx:
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param res_as_json:
-        :return:
+        :type res_as_json: dict
+        :return: None
         """
         if 'nodeAttributesAsCX2' not in res_as_json:
             return
-        node_alias_dict = dict()
-        for entry in res_as_json['nodeAttributesAsCX2']['attributeDeclarations']:
-            if 'nodes' in entry:
-                for key in entry['nodes'].keys():
-                    node_alias_dict[entry['nodes'][key]['a']] = (key,
-                                                                 entry['nodes'][key]['v'],
-                                                                 entry['nodes'][key]['d'])
+        n_a_d = dict()
+        attr_dec = res_as_json['nodeAttributesAsCX2']['attributeDeclarations']
+        for entry in attr_dec:
+            if 'nodes' not in entry:
+                continue
+            for key in entry['nodes'].keys():
+                n_a_d[entry['nodes'][key]['a']] = (key,
+                                                   entry['nodes'][key]['v'],
+                                                   entry['nodes'][key]['d'])
 
         for entry in res_as_json['nodeAttributesAsCX2']['nodes']:
             node_id = nodes_dict[entry['id']]
             for n_alias in entry['v'].keys():
-                attr_name, attr_value, attr_type = node_alias_dict[n_alias]
+                attr_name, attr_value, attr_type = n_a_d[n_alias]
                 net_cx.add_node_attribute(property_of=node_id,
                                           name=attr_name,
-                                          values=entry['v'][n_alias],
+                                          values=str(entry['v'][n_alias]),
                                           type=attr_type)
 
     @staticmethod
-    def write_edge_list(net_cx, tempdir):
+    def _write_edge_list(net_cx, tempdir):
         """
+        Writes edges from 'net_cx' network to file named 'input.edgelist'
+        in 'tempdir' as a tab delimited file of source target
 
-        :param net_cx:
-        :param tempdir:
-        :return:
+        :param net_cx: Network to extract edges from
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param tempdir: directory to write edge list to
+        :type tempdir: str
+        :return: path to edgelist file
+        :rtype: str
         """
         edgelist = os.path.join(tempdir, 'input.edgelist')
         with open(edgelist, 'w') as f:
@@ -332,244 +485,57 @@ class CommunityDetection(object):
         return edgelist
 
     @staticmethod
-    def get_node_dictionary(net_cx):
+    def _get_edge_list(net_cx):
         """
+        Writes edges from 'net_cx' network to file named 'input.edgelist'
+        in 'tempdir' as a tab delimited file of source target
+
+        :param net_cx: Network to extract edges from
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param tempdir: directory to write edge list to
+        :type tempdir: str
+        :return: path to edgelist file
+        :rtype: str
+        """
+        edgelist = []
+
+        for edge_id, edge_obj in net_cx.get_edges():
+            edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+        return ''.join(edgelist)
+
+    @staticmethod
+    def _get_node_dictionary(net_cx):
+        """
+        Creates a dictionary from 'net_cx' passed in where
+        key is id of node and value is name of node
 
         :param net_cx:
-        :return:
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :return: { 'NODEID': NODE_NAME }
+        :rtype: dict
         """
+        node_id_set = set()
         node_dict = dict()
         for node_id, node_obj in net_cx.get_nodes():
             node_dict[node_id] = node_obj['n']
+            node_id_set.add(node_id)
         return node_dict
 
     @staticmethod
-    def apply_style(cx_network,
-                    style='default_style.cx'):
+    def _apply_style(net_cx,
+                     style='default_style.cx'):
         """
         Applies default hierarchy style to network
 
-        :param cx_network:
-        :return:
+        :param net_cx: network to update style on
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param style: path to CX file with style to use
+        :type style: str
+        :return: None
         """
-        cx_network.apply_style_from_network(
-            ndex2.create_nice_cx_from_file(os.path.join(os.path.dirname(__file__),
-                                                        style)))
-
-
-class FunctionalEnrichment(object):
-    """
-    Runs Community Detection Functional Enrichment Algorithms
-    packaged as Docker containers built for CDAPS service
-
-    """
-    def __init__(self):
-        """
-        Constructor
-        """
-        self._docker = DockerRunner()
-
-    def set_alternate_docker_runner(self, docker_runner):
-        """
-
-        :param docker_runner:
-        :return:
-        """
-        self._docker = docker_runner
-
-    def _write_gene_list(self, net_cx=None, node_id=None,
-                         tempdir=None, counter=None, max_gene_list=500):
-        """
-
-        :param net_cx:
-        :param tempdir:
-        :return:
-        """
-        outfile = os.path.join(tempdir, str(counter) + '.input')
-        with open(outfile, 'w') as f:
-            gene_list = self._get_node_memberlist(net_cx, node_id)
-            if gene_list is None or len(gene_list) == 0 or len(gene_list) > max_gene_list:
-                return None, None
-            f.write(','.join(gene_list))
-        return outfile, gene_list
-
-    def _get_node_memberlist(self, net_cx, node_id,
-                             node_attrib_name='CD_MemberList'):
-        """
-
-        :param net_cx:
-        :return:
-        """
-        n_attr = net_cx.get_node_attribute(node_id, node_attrib_name)
-        if n_attr is None:
-            return None
-        return n_attr['v'].split(' ')
-
-    def _annotate_node_with_best_hit(self, docker_image, member_list, net_cx, node_id, hit,
-                                     custom_params=None):
-        hit_name = '(none)'
-        labeled = False
-        if hit['name'] is not None and len(hit['name']) > 0:
-            hit_name = hit['name']
-            labeled = True
-
-        non_members = set()
-        if member_list is not None:
-            for gene in member_list:
-                if gene not in hit['intersections']:
-                    non_members.add(gene)
-        net_cx.remove_node_attribute(node_id, 'CD_CommunityName')
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_CommunityName',
-                                  values=hit_name,
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_AnnotatedMembers',
-                                  values=' '.join(hit['intersections']),
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_AnnotatedMembers_Size',
-                                  values=len(non_members),
-                                  type='integer',
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_AnnotatedMembers_Overlap',
-                                  values=round(hit['jaccard'], 3),
-                                  type='double',
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_Annotated_Pvalue',
-                                  values=hit['p_value'],
-                                  type='double',
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_Labeled',
-                                  values=labeled,
-                                  type='boolean',
-                                  overwrite=True)
-        algo_summary = 'Annotated by [Docker: ' + docker_image + '] {'
-        if custom_params is not None:
-            algo_summary += ' '.join(custom_params) + '}'
+        if os.path.isfile(style):
+            style_file = style
         else:
-            algo_summary += '}'
-        algo_summary + ' via run_functionalenrichment.py'
-
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_AnnotatedAlgorithm',
-                                  values=algo_summary,
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_NonAnnotatedMembers',
-                                  values=' '.join(non_members),
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_AnnotatedMembers_SourceDB',
-                                  values=hit['source'],
-                                  overwrite=True)
-        net_cx.add_node_attribute(property_of=node_id,
-                                  name='CD_AnnotatedMembers_SourceTerm',
-                                  values=hit['sourceTermId'],
-                                  overwrite=True)
-
-    def _update_network_with_result(self, docker_image, member_list, net_cx, node_id, result,
-                                   custom_params=None):
-        """
-
-        :param result:
-        :return:
-        """
-        res_as_json = json.loads(result)
-        if isinstance(res_as_json, dict):
-            res_list = [res_as_json]
-
-        self._annotate_node_with_best_hit(docker_image, member_list, net_cx, node_id, res_list[0],
-                                    custom_params=custom_params)
-
-        return net_cx
-
-    def run_functional_enrichment(self, net_cx, docker_image=None,
-                                  temp_dir=None,
-                                  arguments=None,
-                                  numthreads=2,
-                                  max_gene_list=500,
-                                  disable_tqdm=False):
-        """
-
-        :param net_cx:
-        :param docker_image:
-        :param temp_dir:
-        :return:
-        """
-        if docker_image is None:
-            raise CommunityDetectionError('Docker image cannot be None')
-
-        num_nodes = len(net_cx.get_nodes())
-        counter = 0
-        docker_cmds = []
-        tempdir = tempfile.mkdtemp(prefix='run_funcenrichment', dir=temp_dir)
-        try:
-            t_progress = tqdm(total=num_nodes, desc='Create tasks', unit=' tasks',
-                              disable=disable_tqdm)
-            for node_id, node_obj in net_cx.get_nodes():
-                gene_list_file, gene_list = self._write_gene_list(net_cx=net_cx,
-                                                                 node_id=node_id,
-                                                                 tempdir=tempdir,
-                                                                 counter=counter,
-                                                                 max_gene_list=max_gene_list)
-                t_progress.update()
-                counter += 1
-                if gene_list_file is None:
-                    continue
-
-                full_genelist_path = os.path.abspath(gene_list_file)
-
-                full_args = [full_genelist_path]
-                if arguments is not None:
-                    full_args.extend(arguments)
-
-                cmd_dict = {'index': counter,
-                            'node_id': node_id,
-                            'outfile': os.path.join(tempdir, str(counter) + '.out'),
-                            'image': docker_image,
-                            'arguments': full_args,
-                            'temp_dir': tempdir,
-                            'docker_runner': self._docker}
-
-                docker_cmds.append(cmd_dict)
-
-            t_progress.close()
-            # run all the docker commands
-            with Pool(numthreads) as p:
-                num_cmds = len(docker_cmds)
-                with tqdm(total=num_cmds, desc='Running tasks', unit=' tasks',
-                          disable=disable_tqdm) as pbar:
-                    for i, _ in enumerate(p.imap_unordered(run_functional_enrichment_docker, docker_cmds)):
-                        pbar.update()
-
-            # process_pool.map(run_docker, tqdm(docker_cmds, desc='Running Docker'))
-
-            for docker_cmd in tqdm(docker_cmds, desc='Add results', disable=disable_tqdm):
-                if not os.path.isfile(docker_cmd['outfile']):
-                    continue
-                with open(docker_cmd['outfile'], 'r') as f:
-                    res = json.load(f)
-
-                if res['e_code'] is 0 and len(res['out']) > 0:
-                    self._update_network_with_result(docker_image, gene_list,
-                                               net_cx, docker_cmd['node_id'],
-                                               res['out'], custom_params=arguments)
-                else:
-                    net_cx.add_node_attribute(property_of=docker_cmd['node_id'],
-                                              name='CD_CommunityName',
-                                              values='(none)',
-                                              overwrite=True)
-                    net_cx.add_node_attribute(property_of=docker_cmd['node_id'],
-                                              name='CD_Labeled',
-                                              values=False,
-                                              type='boolean',
-                                              overwrite=True)
-
-            return net_cx
-        finally:
-            shutil.rmtree(tempdir)
-
+            style_file = os.path.join(os.path.dirname(__file__), style)
+        style_cx = ndex2.create_nice_cx_from_file(style_file)
+        net_cx.apply_style_from_network(style_cx)
