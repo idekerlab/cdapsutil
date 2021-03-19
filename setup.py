@@ -18,11 +18,12 @@ with open('HISTORY.rst') as history_file:
 
 requirements = [
     'ndex2',
+    'requests',
     'tqdm'
 ]
 
 test_requirements = [
-    # TODO: put package test requirements here
+    'requests-mock'
 ]
 
 setup(
@@ -30,7 +31,7 @@ setup(
     version=version,
     description="Python utilities for CDAPS",
     long_description=readme + '\n\n' + history,
-    author="Chris Churas",
+    author="Christopher Churas",
     author_email='churas.camera@gmail.com',
     url='https://github.com/idekerlab/cdapsutil',
     packages=[
