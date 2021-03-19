@@ -270,14 +270,21 @@ class CommunityDetection(object):
                   map of cluster node id to set of member node ids)
         :rtype: tuple
         """
-        try:
-            res_as_json = json.loads(result)
-        except JSONDecodeError as je:
-            LOGGER.debug('caught jsondecode error: ' + str(je))
-            if isinstance(result, str):
-                res_as_json = {'communityDetectionResult': result}
-            else:
-                res_as_json = {'communityDetectionResult': result.decode('utf-8')}
+        if result is None:
+            raise CommunityDetectionError('Result is None')
+
+        if isinstance(result, dict):
+            res_as_json = result
+        else:
+            # TODO rework this cause result can be str or bytes
+            try:
+                res_as_json = json.loads(result)
+            except JSONDecodeError as je:
+                LOGGER.debug('caught jsondecode error: ' + str(je))
+                if isinstance(result, str):
+                    res_as_json = {'communityDetectionResult': result}
+                else:
+                    res_as_json = {'communityDetectionResult': result.decode('utf-8')}
         hier_list = res_as_json['communityDetectionResult']
 
         if LOGGER.isEnabledFor(logging.DEBUG):
