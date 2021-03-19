@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Welcome to CDAPS Python Utilities's documentation!
-======================================
+=====================================================
 
 Contents:
 
@@ -14,8 +14,10 @@ Contents:
    readme
    installation
    usage
+   modules
    contributing
-   authorshistory
+   history
+   authors
 
 Indices and tables
 ==================
