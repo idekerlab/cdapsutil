@@ -4,28 +4,23 @@ cdapsutil package
 Community Detection
 -----------------------
 
-.. automodule:: cdapsutil.cd
+.. autoclass:: cdapsutil.cd.CommunityDetection
     :members:
-    :special-members: __init__
-    :undoc-members:
-    :show-inheritance:
 
 Functional Enrichment
 --------------------------
 
-.. automodule:: cdapsutil.fe
+.. autoclass:: cdapsutil.fe.FunctionalEnrichment
     :members:
-    :undoc-members:
-    :show-inheritance:
 
 Runners
 --------------------------
 
-.. automodule:: cdapsutil.runner
+.. autoclass:: cdapsutil.runner.DockerRunner
     :members:
-    :special-members: __init__
-    :undoc-members:
-    :show-inheritance:
+
+.. autoclass:: cdapsutil.runner.ServiceRunner
+    :members:
 
 Exceptions
 ---------------------------
