@@ -82,10 +82,9 @@ class TestDockerRunner(unittest.TestCase):
             self.assertTrue('--blah' in out_str)
             self.assertTrue('--val 2' in out_str)
             self.assertTrue('--foo hi' in out_str)
-
-
         finally:
             shutil.rmtree(temp_dir)
+
 
 if __name__ == '__main__':
     sys.exit(unittest.main())
