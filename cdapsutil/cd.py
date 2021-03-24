@@ -136,7 +136,8 @@ class CommunityDetection(object):
                                         'Raw JSON: ' +
                                         str(resp_as_json))
             out = resp_as_json['result']
-        LOGGER.debug(str(task_id) + ' completed. Generating hierarchy')
+
+        LOGGER.debug('Task completed. Generating hierarchy')
         clusters_dict,\
             children_dict,\
             res_as_json = self.\
@@ -393,7 +394,7 @@ class CommunityDetection(object):
             if node_id in updated_nodes_dict:
                 member_list_size = len(updated_nodes_dict[node_id])
                 member_list = ' '.join(updated_nodes_dict[node_id])
-                member_list_logsize = math.log(member_list_size) / math.log(2)
+                member_list_logsize = round(math.log(member_list_size) / math.log(2), 3)
             else:
                 member_list_size = 0
                 member_list = ''
