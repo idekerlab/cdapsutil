@@ -240,15 +240,52 @@ class ServiceRunner(object):
                                           str(he))
 
 
+class ProcessWrapper(object):
+    """
+    Runs command line process
+    """
+    def __init__(self):
+        """
+        Constructor
+        """
+        pass
+
+    def run(self, cmd):
+        """
+        Runs external process
+
+        :param cmd: Command to run. Should be a list of arguments
+                    that include invoking command. For example to
+                    run ``ls -la`` pass in ['ls','-la']
+        :type cmd: list
+        :return: (return code, stdout from subprocess, stderr from subprocess)
+        :rtype: tuple
+        """
+        p = subprocess.Popen(cmd,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+
+        out, err = p.communicate()
+
+        return p.returncode, out, err
+
+
 class DockerRunner(object):
     """
     Wrapper to run Docker containers
+
+    :param path_to_docker: Full path to docker command
+    :type path_to_docker: str
+    :param processwrapper: Object to run external process
+    :type processwrapper: :py:class:`ProcessWrapper`
     """
-    def __init__(self, path_to_docker='docker'):
+    def __init__(self, path_to_docker='docker',
+                 processwrapper=ProcessWrapper()):
         """
         Constructor
         """
         self._dockerpath = path_to_docker
+        self._procwrapper = processwrapper
 
     def run(self, algorithm=None, arguments=None,
             temp_dir=None):
@@ -265,7 +302,11 @@ class DockerRunner(object):
                          access when `-v X:X` flag is added to docker
                          command
         :type temp_dir: str
-        :return:
+        :raises CommunityDetectionError: If there is an error in running job
+                                         outside of non-zero exit code from
+                                         command
+        :return: (return code, stdout from subprocess, stderr from subprocess)
+        :rtype: tuple
         """
         if algorithm is None:
             raise CommunityDetectionError('Algorithm is None')
@@ -284,7 +325,7 @@ class DockerRunner(object):
 
         start_time = _cur_time_in_seconds()
         try:
-            return self._run_docker_cmd(full_args)
+            return self._procwrapper.run(full_args)
         finally:
             LOGGER.debug('Running ' +
                          ' '.join(full_args) +
@@ -292,20 +333,61 @@ class DockerRunner(object):
                          str(_cur_time_in_seconds() - start_time) +
                          ' seconds')
 
-    def _run_docker_cmd(self, cmd):
-        """
-        Runs docker
 
-        :param cmd_to_run: command to run as list
-        :type cmd_to_run: list
+class SingularityRunner(object):
+    """
+    Wrapper to run Singularity containers
+
+    :param singularity_path: Path to singularity
+    :type singularity_path: str
+    :param processwrapper: Object to run external process
+    :type processwrapper: :py:class:`ProcessWrapper`
+    """
+    def __init__(self, singularity_path='singularity',
+                 processwrapper=ProcessWrapper()):
+        """
+        Constructor
+        """
+        self._singularitypath = singularity_path
+        self._procwrapper = processwrapper
+
+    def run(self, algorithm=None, arguments=None, temp_dir=None):
+        """
+        Runs Singularity command returning a tuple
+        with error code, standard out and standard error
+
+        :param algorithm: Singularity image to run
+        :type algorithm: str
+        :param arguments: Flags
+        :type arguments: dict
+        :param temp_dir: This is ignored since singularity does not need a
+                         mapping like Docker
+        :type temp_dir: str
+        :raises CommunityDetectionError: If there is an error in running job
+                                         outside of non-zero exit code from
+                                         command
         :return: (return code, stdout from subprocess, stderr from subprocess)
         :rtype: tuple
         """
+        if algorithm is None:
+            raise CommunityDetectionError('Algorithm is None')
 
-        p = subprocess.Popen(cmd,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+        full_args = [self._singularitypath, 'run',
+                     algorithm]
 
-        out, err = p.communicate()
+        if arguments is not None:
+            for key in arguments:
+                full_args.append(key)
+                if arguments[key] is not None:
+                    full_args.append(str(arguments[key]))
 
-        return p.returncode, out, err
+        start_time = _cur_time_in_seconds()
+        try:
+            return self._procwrapper.run(full_args)
+        finally:
+            LOGGER.debug('Running ' +
+                         ' '.join(full_args) +
+                         ' took ' +
+                         str(_cur_time_in_seconds() - start_time) +
+                         ' seconds')
+
