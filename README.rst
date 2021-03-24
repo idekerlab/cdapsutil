@@ -8,6 +8,9 @@ CDAPS Python Utilities
 .. image:: https://travis-ci.com/idekerlab/cdapsutil.svg?branch=master
     :target: https://travis-ci.com/idekerlab/cdapsutil
 
+.. image:: https://coveralls.io/repos/github/idekerlab/cdapsutil/badge.svg?branch=master
+    :target: https://coveralls.io/github/idekerlab/cdapsutil?branch=master
+
 .. image:: https://readthedocs.org/projects/cdapsutil/badge/?version=latest
         :target: https://cdapsutil.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
