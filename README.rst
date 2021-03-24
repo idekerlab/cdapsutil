@@ -17,7 +17,8 @@ CDAPS Python Utilities
 
 
 
-Python utilities for `Community Detection APplication and Service <https://cdaps.readthedocs.io/>`_
+Library that enables invocation of `Community Detection APplication and Service <https://cdaps.readthedocs.io/>`_
+algorithms via Python
 
 
 .. warning::
