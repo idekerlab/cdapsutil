@@ -7,6 +7,7 @@ import tempfile
 import shutil
 from multiprocessing import Pool
 from tqdm import tqdm
+import cdapsutil
 from cdapsutil.exceptions import CommunityDetectionError
 from cdapsutil import runner
 from cdapsutil.runner import DockerRunner
@@ -18,22 +19,21 @@ LOGGER = logging.getLogger(__name__)
 class FunctionalEnrichment(object):
     """
     Runs Community Detection Functional Enrichment Algorithms
-    packaged as Docker containers built for CDAPS service
+    packaged as `Docker <https://www.docker.com/>`_ containers built
+    for `CDAPS service <https://cdaps.readthedocs.io/>`_
 
+    :param docker: Object used to run FunctionalEnrichment via locally
+                   installed Docker
+    :type docker: :py:class:`~cdapsutil.runner.DockerRunner`
+    :raises CommunityDetectionError: If `docker` is ``None``
     """
-    def __init__(self):
+    def __init__(self, docker=DockerRunner()):
         """
         Constructor
         """
-        self._docker = DockerRunner()
-
-    def set_alternate_docker_runner(self, docker_runner):
-        """
-
-        :param docker_runner:
-        :return:
-        """
-        self._docker = docker_runner
+        if docker is None:
+            raise CommunityDetectionError('docker is None')
+        self._docker = docker
 
     def _write_gene_list(self, net_cx=None, node_id=None,
                          tempdir=None, counter=None, max_gene_list=500):
@@ -110,7 +110,7 @@ class FunctionalEnrichment(object):
             algo_summary += ' '.join(custom_params) + '}'
         else:
             algo_summary += '}'
-        algo_summary + ' via run_functionalenrichment.py'
+        algo_summary + ' via cdapsutil ' + str(cdapsutil.__version__)
 
         net_cx.add_node_attribute(property_of=node_id,
                                   name='CD_AnnotatedAlgorithm',
@@ -155,6 +155,7 @@ class FunctionalEnrichment(object):
                                   disable_tqdm=False,
                                   via_service=False):
         """
+        This is code is prototype and not ready for usage
 
         :param net_cx:
         :param algo_or_docker:
