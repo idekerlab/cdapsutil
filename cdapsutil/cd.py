@@ -27,21 +27,21 @@ class CommunityDetection(object):
     `Docker <https://www.docker.com/>`_ containers built for
     `CDAPS service <https://cdaps.readthedocs.io/>`_ locally or remotely
 
+    :param service: Object used to run CommunityDetection via
+                    CDAPS REST service
+    :type service: :py:class:`~cdapsutil.runner.ServiceRunner`
+    :param docker: Object used to run CommunityDetection via locally
+                   installed Docker
+    :type docker: :py:class:`~cdapsutil.runner.DockerRunner`
+    :raises CommunityDetectionError: If `service` or `docker` is ``None``
     """
 
     def __init__(self,
                  service=ServiceRunner(service_endpoint=REST_ENDPOINT),
                  docker=DockerRunner()):
         """
-        Constructor
+        Constructor. See class description for usage
 
-        :param service: Object used to run CommunityDetection via
-                        CDAPS REST service
-        :type service: :py:class:`~cdapsutil.runner.ServiceRunner`
-        :param docker: Object used to run CommunityDetection via locally
-                       installed Docker
-        :type docker: :py:class:`~cdapsutil.runner.DockerRunner`
-        :raises CommunityDetectionError: If `service` or `docker` is ``None``
         """
         if docker is None:
             raise CommunityDetectionError('docker is None')
@@ -74,19 +74,19 @@ class CommunityDetection(object):
         locally. In this case **algo_or_docker** parameter should be set to
         the name of the `Docker <https://www.docker.com/>`_ image.
 
-        :param net_cx: network to run community detection on
+        :param net_cx: Network to run community detection on
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param algo_or_docker: name of algorithm if **via_service** parameter
+        :param algo_or_docker: Name of algorithm if **via_service** parameter
                                is ``True``, otherwise name of Docker image
                                (ie ``coleslawndex/cdhidef:0.1.0``)
         :type algo_or_docker: str
-        :param temp_dir: path to temporary directory, which if running
+        :param temp_dir: Path to temporary directory, which if running
                          locally via `Docker <https://www.docker.com/>`_
                          must be a path that can be seen by the
                          `Docker <https://www.docker.com/>`_ with
                          ``-v`` parameter
         :type temp_dir: str
-        :param arguments: flags to pass to algorithm. Should be in format
+        :param arguments: Flags to pass to algorithm. Should be in format
                           where key is parameter name and value is parameter
                           value. For flags this value should be ``None``
         :type arguments: dict
@@ -103,7 +103,7 @@ class CommunityDetection(object):
         :type poll_interval: int
         :raises CommunityDetectionError: If there was an error running the
                                          algorithm
-        :return: Hierarchy network generated
+        :return: Hierarchy network
         :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         """
         if via_service is None or via_service is False:
@@ -165,17 +165,17 @@ class CommunityDetection(object):
         """
         Creates an empty hierarchy network with appropriate network attributes
 
-        :param docker_image: docker image, used to set value
+        :param docker_image: Docker image, used to set value
                              `prov:wasGeneratedBy`
                              network attribute
         :type docker_image: str
-        :param algo_name: name of algorithm, used in `description` network
+        :param algo_name: Name of algorithm, used in `description` network
                           attribute
         :type algo_name: str
-        :param source_network: source network, name is used to set name of
+        :param source_network: Source network, name is used to set name of
                                network returned by this method
         :type source_network: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :return: empty network except for network attributes
+        :return: Empty network except for network attributes
         :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         """
 
@@ -215,12 +215,13 @@ class CommunityDetection(object):
         cluster are listed. This method examines all the children clusters
         and adds their members to each cluster.
 
-        :param clusters_dict: dictionary where key is cluster node id and value
+        :param clusters_dict: Dictionary where key is cluster node id and value
                               is a set of direct children clusters
-        :param children_dict: dictionary where key is parent node id and
+        :type clusters_dict: dict
+        :param children_dict: Dictionary where key is parent node id and
                               value is a set of children node ids
         :type children_dict: dict
-        :return: dictionary where key is cluster node id and value is set of
+        :return: Dictionary where key is cluster node id and value is set of
                  all members for that cluster which includes members of any
                  children clusters
         :rtype: dict
@@ -339,17 +340,17 @@ class CommunityDetection(object):
         create a complete hierarchy that is similar to result from
         CDAPS Cytoscape App
 
-        :param docker_image: docker image
+        :param docker_image: Docker image
         :type docker_image: str
-        :param algo_name: name of algorithm
+        :param algo_name: Name of algorithm
         :type algo_name: str
-        :param net_cx: source parent network
+        :param net_cx: Source parent network
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param result: JSON data of result from running docker image
         :type result: str
-        :param arguments: user arguments passed to docker
+        :param arguments: User arguments passed to docker
         :type arguments: list
-        :return: complete hierarchy network that is similar to the one
+        :return: Complete hierarchy network that is similar to the one
                  generated in CDAPS Cytoscape App
         :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         """
@@ -535,9 +536,9 @@ class CommunityDetection(object):
         """
         Applies default hierarchy style to network
 
-        :param net_cx: network to update style on
+        :param net_cx: Network to update style on
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param style: path to CX file with style to use
+        :param style: Path to CX file with style to use
         :type style: str
         :return: None
         """
