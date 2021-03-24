@@ -12,9 +12,6 @@ CDAPS Python Utilities
         :target: https://cdapsutil.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
-.. image:: https://requires.io/github/idekerlab/cdapsutil/requirements.svg?branch=master
-        :target: https://requires.io/github/idekerlab/cdapsutil/requirements?branch=master
-        :alt: Dependencies
 
 
 Python utilities for `Community Detection APplication and Service <https://cdaps.readthedocs.io/>`_
