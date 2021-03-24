@@ -76,9 +76,13 @@ class TestDockerRunner(unittest.TestCase):
                                       arguments=myargs)
             self.assertEqual(0, e_code)
             self.assertEqual(b'stderroutput', err)
-            res_str = 'run --rm -v ' + temp_dir + ':' +\
-                      temp_dir + ' myalgo' + ' --blah --val 2 --foo hi'
-            self.assertEqual(res_str.encode(), out)
+            out_str = out.decode()
+            self.assertTrue('run --rm -v ' + temp_dir + ':' +
+                            temp_dir + ' myalgo' in out_str)
+            self.assertTrue('--blah' in out_str)
+            self.assertTrue('--val 2' in out_str)
+            self.assertTrue('--foo hi' in out_str)
+
 
         finally:
             shutil.rmtree(temp_dir)
