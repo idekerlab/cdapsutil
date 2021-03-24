@@ -5,8 +5,8 @@ CDAPS Python Utilities
 .. image:: https://img.shields.io/pypi/v/cdapsutil.svg
         :target: https://pypi.python.org/pypi/cdapsutil
 
-.. image:: https://img.shields.io/travis/idekerlab/cdapsutil.svg
-        :target: https://travis-ci.org/idekerlab/cdapsutil
+.. image:: https://travis-ci.com/idekerlab/cdapsutil.svg?branch=master
+    :target: https://travis-ci.com/idekerlab/cdapsutil
 
 .. image:: https://readthedocs.org/projects/cdapsutil/badge/?version=latest
         :target: https://cdapsutil.readthedocs.io/en/latest/?badge=latest
