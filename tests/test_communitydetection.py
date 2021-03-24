@@ -9,16 +9,12 @@ Tests for `cdapsutil.cd` module.
 """
 
 import os
-import io
 import sys
 import tempfile
 import shutil
-import logging
 import json
 import unittest
 
-
-import requests
 import requests_mock
 
 import cdapsutil
