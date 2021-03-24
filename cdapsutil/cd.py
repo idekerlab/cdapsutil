@@ -7,6 +7,7 @@ import math
 from json.decoder import JSONDecodeError
 import ndex2
 from ndex2.nice_cx_network import NiceCXNetwork
+import cdapsutil
 from cdapsutil.runner import DockerRunner
 from cdapsutil.runner import ServiceRunner
 from cdapsutil.exceptions import CommunityDetectionError
@@ -54,6 +55,8 @@ class CommunityDetection(object):
     def run_community_detection(self, net_cx, algo_or_docker=None,
                                 temp_dir=None,
                                 arguments=None,
+                                weight_col=None,
+                                default_weight=None,
                                 via_service=False,
                                 max_retries=600,
                                 poll_interval=1):
@@ -90,6 +93,15 @@ class CommunityDetection(object):
                           where key is parameter name and value is parameter
                           value. For flags this value should be ``None``
         :type arguments: dict
+        :param weight_col: Name of column containing weights, Set to ``None``
+                           for unweighted
+        :type weight_col: str
+        :param default_weight: Default weight value for edges where no weight
+                               was found. Only applicable if `weight_col`
+                               parameter is set. **WARNING** This not
+                               yet supported and will raise a
+                               :py:class:`~cdapsutil.exceptions.CommunityDetectionError`
+        :type default_weight: float
         :param via_service: If ``True`` algorithm will be run on
                             remote service. Otherwise algorithm will be
                             run locally utilizing local install of
@@ -102,10 +114,15 @@ class CommunityDetection(object):
                               completion when `via_service` is set to ``True``
         :type poll_interval: int
         :raises CommunityDetectionError: If there was an error running the
-                                         algorithm
+                                         algorithm or if `weight_col` parameter
+                                         is set which is not yet supported
         :return: Hierarchy network
         :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         """
+        if weight_col is not None:
+            raise CommunityDetectionError('Weighted graphs are not yet '
+                                          'supported')
+
         if via_service is None or via_service is False:
             edgelist = CommunityDetection._write_edge_list(net_cx, temp_dir)
             full_args = {os.path.abspath(edgelist): None}
@@ -204,8 +221,8 @@ class CommunityDetection(object):
         hier_net.set_network_attribute('prov:wasDerivedFrom',
                                        values=source_network.get_name())
         hier_net.set_network_attribute('prov:wasGeneratedBy',
-                                       values='run_community'
-                                              'detection.py '
+                                       values='cdapsutil ' +
+                                              cdapsutil.__version__ + ' ' +
                                               'Docker image: ' + docker_image)
         return hier_net
 
@@ -278,7 +295,6 @@ class CommunityDetection(object):
         if isinstance(result, dict):
             res_as_json = result
         else:
-            # TODO rework this cause result can be str or bytes
             try:
                 res_as_json = json.loads(result)
             except JSONDecodeError as je:
@@ -475,7 +491,7 @@ class CommunityDetection(object):
                                           type=attr_type)
 
     @staticmethod
-    def _write_edge_list(net_cx, tempdir):
+    def _write_edge_list(net_cx, tempdir=None, weight_col=None):
         """
         Writes edges from 'net_cx' network to file named 'input.edgelist'
         in 'tempdir' as a tab delimited file of source target
@@ -494,7 +510,7 @@ class CommunityDetection(object):
         return edgelist
 
     @staticmethod
-    def _get_edge_list(net_cx):
+    def _get_edge_list(net_cx, weight_col=None):
         """
         Writes edges from 'net_cx' network to file named 'input.edgelist'
         in 'tempdir' as a tab delimited file of source target
