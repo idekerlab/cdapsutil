@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import subprocess
 import logging
 import json
@@ -48,9 +49,161 @@ def _run_functional_enrichment_docker(docker_dict):
         json.dump(res, f)
 
 
-class ServiceRunner(object):
+class ProcessWrapper(object):
     """
-    Wrapper to run algorithms via CDAPS REST Service
+    Runs command line process
+    """
+    def __init__(self):
+        """
+        Constructor
+        """
+        pass
+
+    def run(self, cmd):
+        """
+        Runs external process
+
+        :param cmd: Command to run. Should be a list of arguments
+                    that include invoking command. For example to
+                    run ``ls -la`` pass in ['ls','-la']
+        :type cmd: list
+        :return: (return code, stdout from subprocess, stderr from subprocess)
+        :rtype: tuple
+        """
+        p = subprocess.Popen(cmd,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+
+        out, err = p.communicate()
+
+        return p.returncode, out, err
+
+
+class Runner(object):
+    """
+    Base class for objects that run Community Detection Algorithms packaged as
+    `Docker <https://www.docker.com/>`_ containers built for
+    `CDAPS service <https://cdaps.readthedocs.io/>`_ via various means.
+
+    Currently built Runners:
+
+    :py:class:`ExternalResultRunner` - Parses already run output file/stream
+
+    :py:class:`DockerRunner` - Runs locally via Docker
+
+    :py:class:`SingularityRunner` - Runs locally via Singularity
+
+    :py:class:`ServiceRunner` - Runs remotely via CDAPS REST Service
+
+    """
+
+    def __init__(self):
+        """
+        Constructor
+        """
+        self._docker_image_name = ''
+        self._algorithm_name = ''
+
+    def get_docker_image(self):
+        """
+        Gets the name of the docker image
+
+        :return: Name of docker image or empty string if
+                 unknown
+        :rtype: str
+        """
+        return self._docker_image_name
+
+    def set_docker_image(self, docker_image):
+        """
+        Sets docker image
+        :return:
+        """
+        self._docker_image_name = docker_image
+
+    def get_algorithm_name(self):
+        """
+        Gets the algorithm name
+
+        :return: Name of algorithm or empty string if unknown
+        :rtype: str
+        """
+        return self._algorithm_name
+
+    def set_algorithm_name(self, algoname):
+        """
+
+        :param algoname:
+        :return:
+        """
+        self._algorithm_name = algoname
+
+    def run(self, net_cx, algorithm=None, arguments=None, temp_dir=None):
+        """
+        Must be implemented by subclasses. Will always raise
+        :py:class:`cdapsutil.exceptions.CommunityDetectionError`
+
+        :param net_cx:
+        :param algorithm:
+        :param arguments: Flags
+        :param temp_dir:
+        :raises CommunityDetectionError: Will always raise this
+        :return: None
+        """
+        raise CommunityDetectionError('Base class contains no implementation. '
+                                      'Use subclass')
+
+    @staticmethod
+    def _write_edge_list(net_cx, tempdir=None, weight_col=None):
+        """
+        Writes edges from 'net_cx' network to file named 'input.edgelist'
+        in 'tempdir' as a tab delimited file of source target
+
+        :param net_cx: Network to extract edges from
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param tempdir: directory to write edge list to
+        :type tempdir: str
+        :return: path to edgelist file
+        :rtype: str
+        """
+        edgelist = os.path.join(tempdir, 'input.edgelist')
+        with open(edgelist, 'w') as f:
+            for edge_id, edge_obj in net_cx.get_edges():
+                f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+        return edgelist
+
+    @staticmethod
+    def _get_edge_list(net_cx, weight_col=None):
+        """
+        Writes edges from 'net_cx' network to file named 'input.edgelist'
+        in 'tempdir' as a tab delimited file of source target
+
+        :param net_cx: Network to extract edges from
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param tempdir: directory to write edge list to
+        :type tempdir: str
+        :return: path to edgelist file
+        :rtype: str
+        """
+        edgelist = []
+
+        for edge_id, edge_obj in net_cx.get_edges():
+            edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+        return ''.join(edgelist)
+
+
+class ServiceRunner(Runner):
+    """
+    :py:class:`Runner` that runs `CDAPS Service containers`
+    remotely via `CDAPS Service <https://cdaps.readthedocs.io>`_
+
+    :param service_endpoint:
+    :param requests_timeout:
+    :param max_retries: Number of times to check for task completion
+    :type max_retries: int
+    :param poll_interval: Time to wait in seconds between checks for task
+                          completion
+    :type poll_interval: int
     """
 
     USER_AGENT_KEY = 'UserAgent'
@@ -58,15 +211,26 @@ class ServiceRunner(object):
     User Agent Header label
     """
 
-    def __init__(self, service_endpoint=None, requests_timeout=30):
+    REST_ENDPOINT = 'http://cdservice.cytoscape.org/cd/' \
+                    'communitydetection/v1'
+    """
+    Default Rest endpoint
+    """
+
+    def __init__(self, service_endpoint=REST_ENDPOINT, requests_timeout=30,
+                 max_retries=600, poll_interval=1):
         """
-        :param service_endpoint:
-        :param requests_timeout:
+        Constructor. See class docs for usage
+
         """
+        super().__init__()
+
         self._service_endpoint = service_endpoint
         self._requests_timeout=requests_timeout
         self._useragent = 'cdapsutil/' +\
                           str(cdapsutil.__version__)
+        self._max_retries = max_retries
+        self._poll_interval = poll_interval
 
     def _get_user_agent_header(self):
         """
@@ -78,6 +242,51 @@ class ServiceRunner(object):
         :rtype: dict
         """
         return {ServiceRunner.USER_AGENT_KEY: self._useragent}
+
+    def _extract_exit_out_and_error_from_json(self, resp_as_json):
+        """
+
+        :param resp_as_json:
+        :return:
+        """
+        e_code = 0
+        if resp_as_json['status'] != 'complete':
+            e_code = 1
+        return e_code, resp_as_json['result'], resp_as_json['message']
+
+    def run(self, net_cx=None, algorithm=None, arguments=None,
+            temp_dir=None):
+        """
+        Runs docker command returning a tuple
+        with error code, standard out and standard error
+
+        :param algorithm: Algorithm to run
+        :type algorithm: str
+        :param arguments: flags
+        :type arguments: dict
+        :param temp_dir: Ignored
+        :type temp_dir: str
+        :raises CommunityDetectionError: If there is an error in running job
+                                         outside of non-zero exit code from
+                                         command
+        :return: (return code, stdout from subprocess, stderr from subprocess)
+        :rtype: tuple
+        """
+        edgelist = self._get_edge_list(net_cx)
+        task_id = self.submit(algorithm=algorithm, data=edgelist,
+                              arguments=arguments)['id']
+        LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
+        self.set_algorithm_name(algorithm)
+        self.wait_for_task_to_complete(task_id,
+                                                max_retries=self._max_retries,
+                                                poll_interval=self._poll_interval)
+        resp_as_json = self.get_result(task_id)
+        if resp_as_json['status'] != 'complete':
+            CommunityDetectionError('Error running algorithm. '
+                                    'Raw JSON: ' +
+                                    str(resp_as_json))
+
+        return self._extract_exit_out_and_error_from_json(resp_as_json)
 
     def submit(self, algorithm=None, data=None,
                arguments=None):
@@ -240,54 +449,26 @@ class ServiceRunner(object):
                                           str(he))
 
 
-class ProcessWrapper(object):
+class DockerRunner(Runner):
     """
-    Runs command line process
-    """
-    def __init__(self):
-        """
-        Constructor
-        """
-        pass
+    :py:class:`Runner` that runs CDAPS Service Docker containers
+    locally via `Docker <https://docker.com>`_
 
-    def run(self, cmd):
-        """
-        Runs external process
-
-        :param cmd: Command to run. Should be a list of arguments
-                    that include invoking command. For example to
-                    run ``ls -la`` pass in ['ls','-la']
-        :type cmd: list
-        :return: (return code, stdout from subprocess, stderr from subprocess)
-        :rtype: tuple
-        """
-        p = subprocess.Popen(cmd,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-
-        out, err = p.communicate()
-
-        return p.returncode, out, err
-
-
-class DockerRunner(object):
-    """
-    Wrapper to run Docker containers
-
-    :param path_to_docker: Full path to docker command
-    :type path_to_docker: str
+    :param binary_path: Full path to docker command
+    :type binary_path: str
     :param processwrapper: Object to run external process
     :type processwrapper: :py:class:`ProcessWrapper`
     """
-    def __init__(self, path_to_docker='docker',
+    def __init__(self, binary_path='docker',
                  processwrapper=ProcessWrapper()):
         """
         Constructor
         """
-        self._dockerpath = path_to_docker
+        super().__init__()
+        self._dockerpath = binary_path
         self._procwrapper = processwrapper
 
-    def run(self, algorithm=None, arguments=None,
+    def run(self, net_cx, algorithm=None, arguments=None,
             temp_dir=None):
         """
         Runs docker command returning a tuple
@@ -311,12 +492,15 @@ class DockerRunner(object):
         if algorithm is None:
             raise CommunityDetectionError('Algorithm is None')
 
+        edgelist = self._write_edge_list(net_cx, tempdir=temp_dir)
         full_args = [self._dockerpath, 'run',
                      '--rm', '-v',
                      temp_dir + ':' +
                      temp_dir,
-                     algorithm]
-
+                     algorithm,
+                     edgelist]
+        self.set_docker_image(algorithm)
+        self.set_algorithm_name(algorithm)
         if arguments is not None:
             for key in arguments:
                 full_args.append(key)
@@ -336,19 +520,21 @@ class DockerRunner(object):
 
 class SingularityRunner(object):
     """
-    Wrapper to run Singularity containers
+    :py:class:`Runner` runs CDAPS Service Docker containers
+    locally via `Singularity <https://sylabs.io>`_
 
-    :param singularity_path: Path to singularity
-    :type singularity_path: str
+    :param binary_path: Path to Singularity
+    :type binary_path: str
     :param processwrapper: Object to run external process
     :type processwrapper: :py:class:`ProcessWrapper`
     """
-    def __init__(self, singularity_path='singularity',
+    def __init__(self, binary_path='singularity',
                  processwrapper=ProcessWrapper()):
         """
         Constructor
         """
-        self._singularitypath = singularity_path
+        super().__init__()
+        self._singularitypath = binary_path
         self._procwrapper = processwrapper
 
     def run(self, algorithm=None, arguments=None, temp_dir=None):
@@ -360,8 +546,7 @@ class SingularityRunner(object):
         :type algorithm: str
         :param arguments: Flags
         :type arguments: dict
-        :param temp_dir: This is ignored since singularity does not need a
-                         mapping like Docker
+        :param temp_dir: Ignored
         :type temp_dir: str
         :raises CommunityDetectionError: If there is an error in running job
                                          outside of non-zero exit code from

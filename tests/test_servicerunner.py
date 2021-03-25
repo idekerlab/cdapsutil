@@ -38,6 +38,14 @@ class TestServiceRunner(unittest.TestCase):
                                        str(cdapsutil.__version__)},
                           sr._get_user_agent_header())
 
+    def test_get_algorithm_name(self):
+        sr = ServiceRunner()
+        self.assertEqual('', sr.get_algorithm_name())
+
+    def test_get_docker_image(self):
+        sr = ServiceRunner()
+        self.assertEqual('', sr.get_docker_image())
+
     def test_wait_for_task_to_complete_none_for_taskid(self):
         sr = ServiceRunner(service_endpoint='http://foo')
         try:
@@ -128,7 +136,6 @@ class TestServiceRunner(unittest.TestCase):
                 self.fail('Expected CommunityDetectionError')
             except CommunityDetectionError as ce:
                 self.assertEqual('Received 503 HTTP response status code : some error', str(ce))
-
 
     def test_submit_None_for_algorithm(self):
         sr = ServiceRunner(service_endpoint='http://foo')

@@ -46,8 +46,9 @@ class TestCommunityDetection(unittest.TestCase):
             return json.load(f)
 
     def test_service_with_successful_mock_data(self):
-        sr = cdapsutil.ServiceRunner(service_endpoint='http://foo')
-        cd = cdapsutil.CommunityDetection(service=sr)
+        sr = cdapsutil.ServiceRunner(service_endpoint='http://foo',
+                                     max_retries=1, poll_interval=0)
+        cd = cdapsutil.CommunityDetection(runner=sr)
         net_cx = self.get_human_hiv_as_nice_cx()
         json_res = self.get_infomap_res_as_dict()
 
@@ -59,10 +60,7 @@ class TestCommunityDetection(unittest.TestCase):
             m.get('http://foo/taskid', status_code=200,
                   json=json_res)
             hier_net = cd.run_community_detection(net_cx,
-                                                  algo_or_docker='infomap',
-                                                  via_service=True,
-                                                  max_retries=1,
-                                                  poll_interval=0)
+                                                  algorithm='infomap')
 
             self.assertEqual(68, len(hier_net.get_nodes()))
             self.assertEqual(67, len(hier_net.get_edges()))

@@ -8,58 +8,39 @@ from json.decoder import JSONDecodeError
 import ndex2
 from ndex2.nice_cx_network import NiceCXNetwork
 import cdapsutil
-from cdapsutil.runner import DockerRunner
 from cdapsutil.runner import ServiceRunner
 from cdapsutil.exceptions import CommunityDetectionError
 
 LOGGER = logging.getLogger(__name__)
 
 
-REST_ENDPOINT = 'http://cdservice.cytoscape.org/cd/' \
-                       'communitydetection/v1'
-"""
-Default REST endpoint
-"""
-
-
 class CommunityDetection(object):
     """
     Runs Community Detection Algorithms packaged as
     `Docker <https://www.docker.com/>`_ containers built for
-    `CDAPS service <https://cdaps.readthedocs.io/>`_ locally or remotely
+    `CDAPS service <https://cdaps.readthedocs.io/>`_ via
+    :py:class:`~cdapsutil.runner.Runner`
 
-    :param service: Object used to run CommunityDetection via
-                    CDAPS REST service
-    :type service: :py:class:`~cdapsutil.runner.ServiceRunner`
-    :param docker: Object used to run CommunityDetection via locally
-                   installed Docker
-    :type docker: :py:class:`~cdapsutil.runner.DockerRunner`
-    :raises CommunityDetectionError: If `service` or `docker` is ``None``
+    :param runner: Object used to run CommunityDetection algorithm.
+    :type runner: :py:class:`~cdapsutil.runner.Runner`
+    :raises CommunityDetectionError: If `runner` is ``None``
     """
 
     def __init__(self,
-                 service=ServiceRunner(service_endpoint=REST_ENDPOINT),
-                 docker=DockerRunner()):
+                 runner=ServiceRunner()):
         """
         Constructor. See class description for usage
 
         """
-        if docker is None:
-            raise CommunityDetectionError('docker is None')
-        self._docker = docker
+        if runner is None:
+            raise CommunityDetectionError('runner is None')
+        self._runner = runner
 
-        if service is None:
-            raise CommunityDetectionError('service is None')
-        self._service = service
-
-    def run_community_detection(self, net_cx, algo_or_docker=None,
+    def run_community_detection(self, net_cx, algorithm=None,
                                 temp_dir=None,
                                 arguments=None,
                                 weight_col=None,
-                                default_weight=None,
-                                via_service=False,
-                                max_retries=600,
-                                poll_interval=1):
+                                default_weight=None):
         """
         Runs community detection on **net_cx** network. The result
         is a new hierarchy network.
@@ -67,27 +48,15 @@ class CommunityDetection(object):
         This method can run the community detection algorithm denoted
         by the **algo_or_docker** parameter via two ways.
 
-        If **via_service** parameter is ``True`` then the algorithm is
-        run remotely on `CDAPS REST service <https://cdaps.readthedocs.io/>`_
-        denoted in the constructor. In this case **algo_or_docker**
-        should be set to the name of the algorithm to run.
-
-        If **via_service** parameter is ``False`` or ``None`` then
-        algorithm is run via `Docker <https://www.docker.com/>`_
-        locally. In this case **algo_or_docker** parameter should be set to
-        the name of the `Docker <https://www.docker.com/>`_ image.
-
         :param net_cx: Network to run community detection on
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param algo_or_docker: Name of algorithm if **via_service** parameter
-                               is ``True``, otherwise name of Docker image
-                               (ie ``coleslawndex/cdhidef:0.1.0``)
-        :type algo_or_docker: str
-        :param temp_dir: Path to temporary directory, which if running
-                         locally via `Docker <https://www.docker.com/>`_
-                         must be a path that can be seen by the
-                         `Docker <https://www.docker.com/>`_ with
-                         ``-v`` parameter
+        :param algorithm: Name of algorithm to run. Depending on the
+                          :py:class:`~cdapsutil.runner.Runner` used this
+                          can be the algorithm name, a Singularity image,
+                          a file, or a Docker image
+        :type algorithm: str
+        :param temp_dir: Path to temporary directory used by some of the
+                         :py:class:`~cdapsutil.runner.Runner` runners
         :type temp_dir: str
         :param arguments: Flags to pass to algorithm. Should be in format
                           where key is parameter name and value is parameter
@@ -102,17 +71,6 @@ class CommunityDetection(object):
                                yet supported and will raise a
                                :py:class:`~cdapsutil.exceptions.CommunityDetectionError`
         :type default_weight: float
-        :param via_service: If ``True`` algorithm will be run on
-                            remote service. Otherwise algorithm will be
-                            run locally utilizing local install of
-                            `Docker <https://www.docker.com/>`_
-        :type via_service: bool
-        :param max_retries: Number of times to check for task completion when
-                            `via_service` is set to ``True``
-        :type max_retries: int
-        :param poll_interval: Time to wait in seconds between checks for task
-                              completion when `via_service` is set to ``True``
-        :type poll_interval: int
         :raises CommunityDetectionError: If there was an error running the
                                          algorithm or if `weight_col` parameter
                                          is set which is not yet supported
@@ -123,36 +81,14 @@ class CommunityDetection(object):
             raise CommunityDetectionError('Weighted graphs are not yet '
                                           'supported')
 
-        if via_service is None or via_service is False:
-            edgelist = CommunityDetection._write_edge_list(net_cx, temp_dir)
-            full_args = {os.path.abspath(edgelist): None}
-
-            if arguments is not None:
-                full_args.update(arguments)
-            algo_name = algo_or_docker[algo_or_docker.index('/') + 1:]
-            e_code, out, err = self._docker.run(algorithm=algo_or_docker,
-                                                arguments=full_args,
-                                                temp_dir=temp_dir)
-            if e_code != 0:
-                raise CommunityDetectionError('Non-zero exit code from '
-                                              'algorithm: ' +
-                                              str(e_code) + ' : ' + str(err) +
-                                              ' : ' + str(out))
-        else:
-            edgelist = CommunityDetection._get_edge_list(net_cx)
-            algo_name = algo_or_docker
-            task_id = self._service.submit(algorithm=algo_name, data=edgelist,
-                                           arguments=arguments)['id']
-            LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
-            self._service.wait_for_task_to_complete(task_id,
-                                                    max_retries=max_retries,
-                                                    poll_interval=poll_interval)
-            resp_as_json = self._service.get_result(task_id)
-            if resp_as_json['status'] != 'complete':
-                CommunityDetectionError('Error running algorithm. '
-                                        'Raw JSON: ' +
-                                        str(resp_as_json))
-            out = resp_as_json['result']
+        e_code, out, err = self._runner.run(net_cx, algorithm=algorithm,
+                                            arguments=arguments,
+                                            temp_dir=temp_dir)
+        if e_code != 0:
+            raise CommunityDetectionError('Non-zero exit code from '
+                                          'algorithm: ' +
+                                          str(e_code) + ' : ' + str(err) +
+                                          ' : ' + str(out))
 
         LOGGER.debug('Task completed. Generating hierarchy')
         clusters_dict,\
@@ -164,8 +100,8 @@ class CommunityDetection(object):
             self._flatten_children_dict(clusters_dict=clusters_dict,
                                         children_dict=children_dict)
 
-        hier_net = self._create_network(docker_image=algo_or_docker,
-                                        algo_name=algo_name,
+        hier_net = self._create_network(docker_image=self._runner.get_docker_image(),
+                                        algo_name=self._runner.get_algorithm_name(),
                                         net_cx=net_cx,
                                         cluster_members=flattened_dict,
                                         clusters_dict=clusters_dict,

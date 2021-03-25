@@ -15,6 +15,7 @@ import tempfile
 import shutil
 import unittest
 
+import ndex2
 from cdapsutil.runner import DockerRunner
 from cdapsutil.exceptions import CommunityDetectionError
 
@@ -41,7 +42,7 @@ class TestDockerRunner(unittest.TestCase):
     def test_run_all_parameters_none(self):
         dr = DockerRunner()
         try:
-            dr.run()
+            dr.run(None)
             self.fail('Expected CommunityDetectionError')
         except CommunityDetectionError as ce:
             self.assertEqual('Algorithm is None', str(ce))
@@ -51,12 +52,16 @@ class TestDockerRunner(unittest.TestCase):
         try:
             docker = os.path.join(temp_dir, 'docker')
             self.write_mock_docker(outfile=docker, exit_code=0)
-            dr = DockerRunner(path_to_docker=docker)
-            e_code, out, err = dr.run('myalgo',
+            dr = DockerRunner(binary_path=docker)
+            net_cx = ndex2.nice_cx_network.NiceCXNetwork()
+            e_code, out, err = dr.run(net_cx, algorithm='myalgo',
                                       temp_dir=temp_dir)
             self.assertEqual(0, e_code)
             self.assertEqual(b'stderroutput', err)
-            res_str = 'run --rm -v ' + temp_dir + ':' + temp_dir + ' myalgo'
+            res_str = 'run --rm -v ' + temp_dir + ':' + temp_dir + ' myalgo ' +\
+                os.path.join(temp_dir, 'input.edgelist')
+            print('result: ' + str(out))
+            print('res_str: ' + res_str)
             self.assertEqual(res_str.encode(), out)
 
         finally:
@@ -67,11 +72,12 @@ class TestDockerRunner(unittest.TestCase):
         try:
             docker = os.path.join(temp_dir, 'docker')
             self.write_mock_docker(outfile=docker, exit_code=0)
-            dr = DockerRunner(path_to_docker=docker)
+            dr = DockerRunner(binary_path=docker)
             myargs = {'--blah': None,
                       '--val': 2,
                       '--foo': 'hi'}
-            e_code, out, err = dr.run('myalgo',
+            net_cx = ndex2.nice_cx_network.NiceCXNetwork()
+            e_code, out, err = dr.run(net_cx, algorithm='myalgo',
                                       temp_dir=temp_dir,
                                       arguments=myargs)
             self.assertEqual(0, e_code)
