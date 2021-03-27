@@ -62,10 +62,11 @@ Step 1 - Choose what to run
     import cdapsutil
 
     sr = cdapsutil.ServiceRunner()
-    for entry in sr.get_algorithms():
-        print('Algorithm name: ' + str(sr['name']) +
-              ' [Docker image: ' + str(sr['docker_image']) + ']')
-        print('\tDescription:\n' + str(sr['description']) + '\n')
+    algos = sr.get_algorithms()['algorithms']
+    for key in algos.keys():
+        print('Algorithm name: ' + str(key))
+        print('\tDocker image: ' + str(algos[key]['dockerImage']))
+        print('\tDescription:\n\t' + str(algos[key]['description']) + '\n')
 
 Step 2 - Choose where to run
 ---------------------------------
