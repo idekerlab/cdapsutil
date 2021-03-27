@@ -427,44 +427,6 @@ class CommunityDetection(object):
                                           type=attr_type)
 
     @staticmethod
-    def _write_edge_list(net_cx, tempdir=None, weight_col=None):
-        """
-        Writes edges from 'net_cx' network to file named 'input.edgelist'
-        in 'tempdir' as a tab delimited file of source target
-
-        :param net_cx: Network to extract edges from
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param tempdir: directory to write edge list to
-        :type tempdir: str
-        :return: path to edgelist file
-        :rtype: str
-        """
-        edgelist = os.path.join(tempdir, 'input.edgelist')
-        with open(edgelist, 'w') as f:
-            for edge_id, edge_obj in net_cx.get_edges():
-                f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
-        return edgelist
-
-    @staticmethod
-    def _get_edge_list(net_cx, weight_col=None):
-        """
-        Writes edges from 'net_cx' network to file named 'input.edgelist'
-        in 'tempdir' as a tab delimited file of source target
-
-        :param net_cx: Network to extract edges from
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param tempdir: directory to write edge list to
-        :type tempdir: str
-        :return: path to edgelist file
-        :rtype: str
-        """
-        edgelist = []
-
-        for edge_id, edge_obj in net_cx.get_edges():
-            edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
-        return ''.join(edgelist)
-
-    @staticmethod
     def _get_node_dictionary(net_cx):
         """
         Creates a dictionary from 'net_cx' passed in where
