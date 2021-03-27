@@ -46,6 +46,51 @@ class TestServiceRunner(unittest.TestCase):
         sr = ServiceRunner()
         self.assertEqual('', sr.get_docker_image())
 
+    def test_get_algorithms_server_error(self):
+        sr = ServiceRunner(service_endpoint='http://foo')
+        try:
+            with requests_mock.Mocker() as m:
+                m.get('http://foo/algorithms', status_code=500,
+                      text='error')
+                sr.get_algorithms()
+                self.fail('Expected CommunityDetectionError')
+        except CommunityDetectionError as ce:
+            self.assertEqual('Received 500 HTTP response status code : error',
+                             str(ce))
+
+    def test_get_algorithms_http_error(self):
+        sr = ServiceRunner(service_endpoint='http://foo')
+        try:
+            with requests_mock.Mocker() as m:
+                m.get('http://foo/algorithms',
+                      exc=requests.exceptions.HTTPError('anerror'))
+                sr.get_algorithms()
+                self.fail('Expected CommunityDetectionError')
+        except CommunityDetectionError as ce:
+            self.assertEqual('Received HTTPError getting '
+                             'algorithms : anerror',
+                             str(ce))
+
+    def test_get_algorithms_no_json(self):
+        sr = ServiceRunner(service_endpoint='http://foo')
+        try:
+            with requests_mock.Mocker() as m:
+                m.get('http://foo/algorithms',
+                      status_code=200)
+                sr.get_algorithms()
+                self.fail('Expected CommunityDetectionError')
+        except CommunityDetectionError as ce:
+            self.assertTrue('Error result not in JSON format : ' in str(ce))
+
+    def test_get_algorithms_success(self):
+        sr = ServiceRunner(service_endpoint='http://foo')
+
+        with requests_mock.Mocker() as m:
+            m.get('http://foo/algorithms',
+                  status_code=200, json={'hi': 'there'})
+            res = sr.get_algorithms()
+            self.assertEqual({'hi': 'there'}, res)
+
     def test_wait_for_task_to_complete_none_for_taskid(self):
         sr = ServiceRunner(service_endpoint='http://foo')
         try:
