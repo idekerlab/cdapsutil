@@ -45,6 +45,13 @@ class TestCommunityDetection(unittest.TestCase):
                                'cdinfomap_out.json'), 'r') as f:
             return json.load(f)
 
+    def test_constructor_none_for_runner(self):
+        try:
+            cd = cdapsutil.CommunityDetection(runner=None)
+            self.fail('Expected CommunityDetectionError')
+        except cdapsutil.CommunityDetectionError as ce:
+            self.assertEqual('runner is None', str(ce))
+
     def test_service_with_successful_mock_data(self):
         sr = cdapsutil.ServiceRunner(service_endpoint='http://foo',
                                      max_retries=1, poll_interval=0)
@@ -91,47 +98,6 @@ class TestCommunityDetection(unittest.TestCase):
         node_dict = cd._get_node_dictionary(net_cx)
         self.assertEqual(471, len(node_dict))
         self.assertEqual('REV', node_dict[738])
-
-    def get_edge_dict(self, net_cx):
-        edge_dict = {}
-        for edge_id, edge_obj in net_cx.get_edges():
-            if edge_obj['s'] not in edge_dict:
-                edge_dict[edge_obj['s']] = set()
-            edge_dict[edge_obj['s']].add(edge_obj['t'])
-        return edge_dict
-
-    def test_get_edge_list(self):
-        net_cx = self.get_human_hiv_as_nice_cx()
-
-        edge_dict = self.get_edge_dict(net_cx)
-
-        cd = cdapsutil.CommunityDetection()
-        res = cd._get_edge_list(net_cx)
-        for entry in res.split('\n'):
-            if len(entry.strip()) == 0:
-                continue
-            splitentry = entry.split('\t')
-            self.assertTrue(int(splitentry[1]) in
-                            edge_dict[int(splitentry[0])])
-
-    def test_write_edge_list(self):
-        temp_dir = tempfile.mkdtemp()
-        try:
-            net_cx = self.get_human_hiv_as_nice_cx()
-
-            edge_dict = self.get_edge_dict(net_cx)
-
-            cd = cdapsutil.CommunityDetection()
-            input_edgelist = cd._write_edge_list(net_cx, temp_dir)
-            with open(input_edgelist, 'r') as f:
-                for entry in f:
-                    if len(entry.strip()) == 0:
-                        continue
-                    splitentry = entry.split('\t')
-                    self.assertTrue(int(splitentry[1]) in
-                                    edge_dict[int(splitentry[0])])
-        finally:
-            shutil.rmtree(temp_dir)
 
 
 if __name__ == '__main__':
