@@ -8,3 +8,4 @@ from .cd import CommunityDetection
 from .exceptions import CommunityDetectionError
 from .runner import DockerRunner
 from .runner import ServiceRunner
+from .runner import ExternalResultsRunner
