@@ -138,20 +138,29 @@ class Runner(object):
         """
         self._algorithm_name = algoname
 
-    def run(self, net_cx, algorithm=None, arguments=None, temp_dir=None):
+    def get_algorithms(self):
+        """
+        Will always raise since subclasses should implement this
+        :py:class:`~cdapsutil.exceptions.CommunityDetectionError`
+
+        :raises CommunityDetectionError: Will always raise this
+        """
+        raise CommunityDetectionError('Not implemented for this Runner')
+
+    def run(self, net_cx=None, algorithm=None, arguments=None, temp_dir=None):
         """
         Must be implemented by subclasses. Will always raise
         :py:class:`cdapsutil.exceptions.CommunityDetectionError`
 
-        :param net_cx:
+        :param net_cx: Network to use as input
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm:
         :param arguments: Flags
         :param temp_dir:
         :raises CommunityDetectionError: Will always raise this
         :return: None
         """
-        raise CommunityDetectionError('Base class contains no implementation. '
-                                      'Use subclass')
+        raise CommunityDetectionError('Not implemented for this Runner')
 
     @staticmethod
     def _write_edge_list(net_cx, tempdir=None, weight_col=None):
@@ -260,6 +269,8 @@ class ServiceRunner(Runner):
         Runs docker command returning a tuple
         with error code, standard out and standard error
 
+        :param net_cx: Network to use as input
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm: Algorithm to run
         :type algorithm: str
         :param arguments: flags
@@ -316,6 +327,7 @@ class ServiceRunner(Runner):
 
         if arguments is not None:
             thedata['customParameters'] = arguments
+        req = None
         try:
             LOGGER.debug('Submitting algorithm ' + str(algorithm) + ' to ' +
                          str(self._service_endpoint))
@@ -337,6 +349,14 @@ class ServiceRunner(Runner):
         except json.decoder.JSONDecodeError as je:
             raise CommunityDetectionError('Unable to parse result from submit: ' +
                                           str(je))
+        finally:
+            if req is not None:
+                try:
+                    req.close()
+                except requests.exceptions.HTTPError as he:
+                    LOGGER.debug('Caught HTTPError closing response : ' +
+                                 str(he))
+                    pass
 
     def wait_for_task_to_complete(self, task_id, poll_interval=1,
                                   consecutive_fail_retry=5,
@@ -393,6 +413,7 @@ class ServiceRunner(Runner):
                                                   str(max_retries) +
                                                   ' exceeded')
             time.sleep(poll_interval)
+            resp = None
             try:
                 resp = requests.get(self._service_endpoint + '/' +
                                     str(task_id) + '/status',
@@ -416,6 +437,14 @@ class ServiceRunner(Runner):
                 LOGGER.debug('Received error from requests: ' + str(he))
                 consecutive_err_cnt += 1
                 continue
+            finally:
+                if resp is not None:
+                    try:
+                        resp.close()
+                    except requests.exceptions.HTTPError as he:
+                        LOGGER.debug('Caught HTTPError closing response : ' +
+                                     str(he))
+                        pass
 
         if consecutive_err_cnt > 0:
             raise CommunityDetectionError('Received ' +
@@ -425,13 +454,15 @@ class ServiceRunner(Runner):
 
     def get_result(self, task_id):
         """
+        Gets result from service
 
         :param task_id:
-        :return:
+        :return: result from service
+        :rtype: dict
         """
         if task_id is None or len(str(task_id).strip()) == 0:
             raise CommunityDetectionError('Task id is empty string or None')
-
+        resp = None
         try:
             resp = requests.get(self._service_endpoint + '/' +
                                 str(task_id),
@@ -447,6 +478,49 @@ class ServiceRunner(Runner):
             raise CommunityDetectionError('Received HTTPError getting result'
                                           ' for task: ' + task_id + ' : ' +
                                           str(he))
+        finally:
+            if resp is not None:
+                try:
+                    resp.close()
+                except requests.exceptions.HTTPError as he:
+                    LOGGER.debug('Caught HTTPError closing response : ' +
+                                 str(he))
+                    pass
+
+    def get_algorithms(self):
+        """
+        Queries service for list of available algorithms
+
+        :raises CommunityDetectionError: If there is an error
+        :return:
+        :rtype: dict
+        """
+        resp = None
+        try:
+            resp = requests.get(self._service_endpoint + '/algorithms',
+                                headers=self._get_user_agent_header(),
+                                timeout=self._requests_timeout)
+            if resp.status_code != 200:
+                raise CommunityDetectionError('Received ' +
+                                              str(resp.status_code) +
+                                              ' HTTP response status code : ' +
+                                              str(resp.text))
+            return resp.json()
+        except json.JSONDecodeError as je:
+            raise CommunityDetectionError('Error result not in JSON '
+                                          'format : ' + str(je))
+        except requests.exceptions.HTTPError as he:
+            raise CommunityDetectionError('Received HTTPError getting '
+                                          'algorithms : ' +
+                                          str(he))
+        finally:
+            if resp is not None:
+                try:
+                    resp.close()
+                except requests.exceptions.HTTPError as he:
+                    LOGGER.debug('Caught HTTPError closing response : ' +
+                                 str(he))
+                    pass
 
 
 class DockerRunner(Runner):
@@ -468,12 +542,14 @@ class DockerRunner(Runner):
         self._dockerpath = binary_path
         self._procwrapper = processwrapper
 
-    def run(self, net_cx, algorithm=None, arguments=None,
+    def run(self, net_cx=None, algorithm=None, arguments=None,
             temp_dir=None):
         """
         Runs docker command returning a tuple
         with error code, standard out and standard error
 
+        :param net_cx: Network to use as input
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm: docker image to run
         :type algorithm: str
         :param arguments: flags
@@ -518,33 +594,30 @@ class DockerRunner(Runner):
                          ' seconds')
 
 
-class SingularityRunner(object):
+class ExternalResultsRunner(object):
     """
-    :py:class:`Runner` runs CDAPS Service Docker containers
-    locally via `Singularity <https://sylabs.io>`_
+    :py:class:`Runner` returns an already generated result set
+    via `algorithm` parameter in `run()` method. This allows
+    results generated externally to be processed
 
-    :param binary_path: Path to Singularity
-    :type binary_path: str
-    :param processwrapper: Object to run external process
-    :type processwrapper: :py:class:`ProcessWrapper`
     """
-    def __init__(self, binary_path='singularity',
-                 processwrapper=ProcessWrapper()):
+    def __init__(self):
         """
         Constructor
         """
         super().__init__()
-        self._singularitypath = binary_path
-        self._procwrapper = processwrapper
 
-    def run(self, algorithm=None, arguments=None, temp_dir=None):
+    def run(self, net_cx=None, algorithm=None, arguments=None,
+            temp_dir=None):
         """
         Runs Singularity command returning a tuple
         with error code, standard out and standard error
 
-        :param algorithm: Singularity image to run
+        :param net_cx: Ignored
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param algorithm: Path to file with results
         :type algorithm: str
-        :param arguments: Flags
+        :param arguments: Ignored
         :type arguments: dict
         :param temp_dir: Ignored
         :type temp_dir: str
@@ -557,22 +630,16 @@ class SingularityRunner(object):
         if algorithm is None:
             raise CommunityDetectionError('Algorithm is None')
 
-        full_args = [self._singularitypath, 'run',
-                     algorithm]
-
-        if arguments is not None:
-            for key in arguments:
-                full_args.append(key)
-                if arguments[key] is not None:
-                    full_args.append(str(arguments[key]))
-
-        start_time = _cur_time_in_seconds()
-        try:
-            return self._procwrapper.run(full_args)
-        finally:
-            LOGGER.debug('Running ' +
-                         ' '.join(full_args) +
-                         ' took ' +
-                         str(_cur_time_in_seconds() - start_time) +
-                         ' seconds')
-
+        e_code = 0
+        err = ''
+        with open(algorithm, 'r') as f:
+            try:
+                result = json.load(f)
+                if 'status' in result:
+                    if result['status'] != 'complete':
+                        e_code = 1
+                if 'message' in result:
+                    err = result['message']
+            except json.JSONDecodeError as je:
+                result = f.read()
+        return e_code, result, err
