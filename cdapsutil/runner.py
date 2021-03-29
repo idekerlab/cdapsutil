@@ -633,13 +633,15 @@ class ExternalResultsRunner(object):
         e_code = 0
         err = ''
         with open(algorithm, 'r') as f:
+            result = f.read()
             try:
-                result = json.load(f)
-                if 'status' in result:
-                    if result['status'] != 'complete':
-                        e_code = 1
-                if 'message' in result:
-                    err = result['message']
-            except json.JSONDecodeError as je:
-                result = f.read()
+                if result.lstrip().startswith('{'):
+                    json_res = json.load(result)
+                    if 'status' in result:
+                        if json_res['status'] != 'complete':
+                            e_code = 1
+                    if 'message' in result:
+                        err = json_res['message']
+            except json.JSONDecodeError:
+                pass
         return e_code, result, err
