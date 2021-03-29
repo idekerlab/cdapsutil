@@ -64,9 +64,12 @@ Step 1 - Choose what to run
     sr = cdapsutil.ServiceRunner()
     algos = sr.get_algorithms()['algorithms']
     for key in algos.keys():
+        if 'EDGELIST' not in algos[key]['inputDataFormat']:
+            continue
+        if 'COMMUNITYDETECT' not in algos[key]['outputDataFormat']:
+            continue
         print('Algorithm name: ' + str(key))
         print('\tDocker image: ' + str(algos[key]['dockerImage']))
-        print('\tDescription:\n\t' + str(algos[key]['description']) + '\n')
 
 Step 2 - Choose where to run
 ---------------------------------
@@ -89,7 +92,7 @@ The code fragments below denote where to run the Community Detection Algorithm.
 
 .. code-block:: python
 
-    cd = cdapsutil.CommunityDetection(runner=cdapsutil.ExternalResultRunner())
+    cd = cdapsutil.CommunityDetection(runner=cdapsutil.ExternalResultsRunner())
 
 Step 3 - Run on a network
 --------------------------
