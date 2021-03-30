@@ -82,8 +82,8 @@ class ProcessWrapper(object):
 class Runner(object):
     """
     Base class for objects that run Community Detection Algorithms packaged as
-    `Docker <https://www.docker.com/>`_ containers built for
-    `CDAPS service <https://cdaps.readthedocs.io/>`_ via various means.
+    `Docker <https://www.docker.com/>`__ containers built for
+    `CDAPS service <https://cdaps.readthedocs.io/>`__ via various means.
 
     Currently built Runners:
 
@@ -91,7 +91,7 @@ class Runner(object):
 
     :py:class:`DockerRunner` - Runs locally via Docker
 
-    :py:class:`ServiceRunner` - Runs remotely via CDAPS REST Service
+    :py:class:`ServiceRunner` - Runs remotely via CDAPS Service
 
     """
 
@@ -172,10 +172,10 @@ class Runner(object):
     @staticmethod
     def _write_edge_list(net_cx, tempdir=None, weight_col=None):
         """
-        Writes edges from 'net_cx' network to file named ``input.edgelist``
-        in 'tempdir' as a tab delimited file of source target
+        Writes edges from `net_cx` network to file named ``input.edgelist``
+        in `tempdir` as a tab delimited file of source target
 
-        **WARNING** 'weight_col' parameter is currently ignored
+        **WARNING** `weight_col` parameter is currently ignored
 
         :param net_cx: Network to extract edges from
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
@@ -214,10 +214,13 @@ class Runner(object):
 class ServiceRunner(Runner):
     """
     :py:class:`Runner` that runs `CDAPS Service containers`
-    remotely via `CDAPS Service <https://cdaps.readthedocs.io>`_
+    remotely via `CDAPS Service <https://cdaps.readthedocs.io>`__
 
-    :param service_endpoint:
-    :param requests_timeout:
+    :param service_endpoint: URL for CDAPS REST Service
+    :type service_endpoint: str
+    :param requests_timeout: Timeout in seconds to pass to
+                             :py:mod:`requests` module for all web requests
+    :type requests_timeout: int or float
     :param max_retries: Number of times to check for task completion
     :type max_retries: int
     :param poll_interval: Time to wait in seconds between checks for task
@@ -276,7 +279,7 @@ class ServiceRunner(Runner):
     def run(self, net_cx=None, algorithm=None, arguments=None,
             temp_dir=None):
         """
-        Runs 'algorithm' via CDAPS REST Service
+        Runs 'algorithm' via `CDAPS service <https://cdaps.readthedocs.io/>`__
         with error code, standard out and standard error derived
         from the service call
 
@@ -317,10 +320,10 @@ class ServiceRunner(Runner):
     def submit(self, algorithm=None, data=None,
                arguments=None):
         """
-        Submits algorithm to CDAPS rest service with endpoint set
-        in constructor
+        Submits algorithm to `CDAPS service <https://cdaps.readthedocs.io/>`__
+        with endpoint set in constructor
 
-        :param algorithm: name of algorithm to call
+        :param algorithm: Name of algorithm to call
         :type algorithm: str
         :param data: The data to pass to the algorithm
         :type object: Could be str, dict, list or anything that can be
@@ -331,7 +334,7 @@ class ServiceRunner(Runner):
                           value to ``None``
                           Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :type arguments: dict
-        :return: task id in this format ``{'id': '<TASK ID'}``
+        :return: Task id in this format ``{'id': '<TASK ID'}``
         :rtype: dict
         """
         if algorithm is None or len(str(algorithm).strip()) == 0:
@@ -379,11 +382,10 @@ class ServiceRunner(Runner):
         """
         Waits for task with `task_id` id to complete.
 
-        :param task_id:
+        :param task_id: Id of task
         :type task_id: str
-        :param poll_interval: how long to wait in milliseconds
-                              (1000 = 1 second) before checking again if task
-                              is complete
+        :param poll_interval: How long to wait in seconds before checking
+                              again if task is complete
         :type poll_interval: int
         :param consecutive_fail_retry: If the number of consecutive failure calls to get
                                status exceeds this value an exception is raised
@@ -469,10 +471,11 @@ class ServiceRunner(Runner):
 
     def get_result(self, task_id):
         """
-        Gets result from service
+        Gets result from `CDAPS service <https://cdaps.readthedocs.io/>`__
 
-        :param task_id:
-        :return: result from service
+        :param task_id: Id of task
+        :type task_id: str
+        :return: Result from service
         :rtype: dict
         """
         if task_id is None or len(str(task_id).strip()) == 0:
@@ -504,10 +507,53 @@ class ServiceRunner(Runner):
 
     def get_algorithms(self):
         """
-        Queries service for list of available algorithms
+        Queries `CDAPS service <https://cdaps.readthedocs.io/>`__ for list
+        of available algorithms
+
+        Example result (only showing one algorithm):
+
+        .. code-block:: python
+
+            { "algorithms":
+                {
+                  "name": "hidef",
+                  "displayName": "HiDeF",
+                  "description": "...",
+                  "version": "0.2.2",
+                  "dockerImage": "coleslawndex/cdhidef:0.2.2",
+                  "inputDataFormat": "EDGELISTV2",
+                  "outputDataFormat": "COMMUNITYDETECTRESULTV2",
+                  "customParameters": [
+                    {
+                      "name": "--maxres",
+                      "displayName": "Maximum resolution parameter",
+                      "description": "Maximum resolution parameter. Increase to get more smaller communities",
+                      "type": "value",
+                      "defaultValue": "50.0",
+                      "validationType": "number",
+                      "validationHelp": "Should be a number",
+                      "validationRegex": null,
+                      "minValue": null,
+                      "maxValue": null
+                    },
+                    {
+                      "name": "--alg",
+                      "displayName": "Algorithm",
+                      "description": "Choose to use Louvain or newer Leiden algorithm",
+                      "type": "value",
+                      "defaultValue": "louvain",
+                      "validationType": "string",
+                      "validationHelp": "Must be set to louvain or leiden",
+                      "validationRegex": "louvain|leiden",
+                      "minValue": null,
+                      "maxValue": null
+                    }
+                  ]
+                }
+            }
 
         :raises CommunityDetectionError: If there is an error
-        :return:
+        :return: Algorithms available from service in example format shown above
         :rtype: dict
         """
         resp = None
@@ -541,9 +587,9 @@ class ServiceRunner(Runner):
 class DockerRunner(Runner):
     """
     :py:class:`Runner` that runs CDAPS Service Docker containers
-    locally via `Docker <https://docker.com>`_
+    locally via `Docker <https://docker.com>`__
 
-    :param binary_path: Full path to docker command
+    :param binary_path: Full path to Docker command
     :type binary_path: str
     :param processwrapper: Object to run external process
     :type processwrapper: :py:class:`ProcessWrapper`
@@ -560,7 +606,7 @@ class DockerRunner(Runner):
     def run(self, net_cx=None, algorithm=None, arguments=None,
             temp_dir=None):
         """
-        Runs docker command returning a tuple
+        Runs `Docker <https://docker.com>`__ command returning a tuple
         with error code, standard out and standard error
 
         :param net_cx: Network to use as input
@@ -616,8 +662,8 @@ class DockerRunner(Runner):
 class ExternalResultsRunner(Runner):
     """
     :py:class:`Runner` returns an already generated result set
-    via `algorithm` parameter in `run()` method. This allows
-    results generated externally to be processed
+    via `algorithm` parameter in :py:func:`~ExternalResultsRunner.run` method.
+    This allows results generated externally to be processed.
 
     """
     def __init__(self):
@@ -631,12 +677,16 @@ class ExternalResultsRunner(Runner):
         """
         Assumes `algorithm` contains path to file with result of invocation
         of algorithm. This allows for externally run algorithms to be
-        loaded into this library. A tuple is returned with return code,
-        result and standard error of result. In this implementation the exit
-        code is always ``0`` unless the contents of the file is in JSON format
-        of a result from CDAPS REST Service in which case a ``1`` return code
-        may be sent if the status was **NOT** ``complete``. Also any data in
-        ``message`` field will be set in the standard error of result.
+        loaded into this library.
+
+        A tuple is returned with return code,result and standard error
+        of result.
+
+        In this implementation the return code is always ``0`` unless the
+        contents of the file is in format matching result from
+        CDAPS REST Service in which case a ``1`` returncode may be sent if
+        the status was **NOT** ``complete``. Any data in ``message`` field
+        will be set in the standard error of result.
 
         :param net_cx: Ignored
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
@@ -649,7 +699,7 @@ class ExternalResultsRunner(Runner):
         :raises CommunityDetectionError: If there is an error in running job
                                          outside of non-zero exit code from
                                          command
-        :return: (return code, stdout from subprocess, stderr from subprocess)
+        :return: (return code, result, error message)
         :rtype: tuple
         """
         if algorithm is None:
