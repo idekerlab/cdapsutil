@@ -8,7 +8,6 @@ This quick tutorial has two parts:
 
 * The steps section below provide more information on how to use this library.
 
-
 Example
 -----------------------
 
