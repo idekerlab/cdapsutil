@@ -18,9 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 class FunctionalEnrichment(object):
     """
-    Runs Community Detection Functional Enrichment Algorithms
-    packaged as `Docker <https://www.docker.com/>`_ containers built
-    for `CDAPS service <https://cdaps.readthedocs.io/>`_
+    **WARNING:** This is class is a work in progress and not ready for use
 
     :param docker: Object used to run FunctionalEnrichment via locally
                    installed Docker
@@ -155,7 +153,7 @@ class FunctionalEnrichment(object):
                                   disable_tqdm=False,
                                   via_service=False):
         """
-        This is code is prototype and not ready for usage
+        This is code is prototype and not ready for use
 
         :param net_cx:
         :param algo_or_docker:
