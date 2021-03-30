@@ -239,7 +239,12 @@ class CommunityDetection(object):
                     res_as_json = {'communityDetectionResult': result}
                 else:
                     res_as_json = {'communityDetectionResult': result.decode('utf-8')}
-        hier_list = res_as_json['communityDetectionResult']
+        if 'communityDetectionResult' in res_as_json:
+            hier_list = res_as_json['communityDetectionResult']
+        else:
+            if 'result' not in res_as_json:
+                raise CommunityDetectionError('Expected result key in JSON')
+            hier_list = res_as_json['result']
 
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug(str(hier_list))
