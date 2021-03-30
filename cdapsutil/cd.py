@@ -42,25 +42,23 @@ class CommunityDetection(object):
                                 weight_col=None,
                                 default_weight=None):
         """
-        Runs community detection on **net_cx** network. The result
-        is a new hierarchy network.
-
-        This method can run the community detection algorithm denoted
-        by the **algo_or_docker** parameter via two ways.
+        Generates hierarchy network by running community detection algorithm
+        specified by **algorithm** parameter on **net_cx** network.
 
         :param net_cx: Network to run community detection on
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm: Name of algorithm to run. Depending on the
                           :py:class:`~cdapsutil.runner.Runner` used this
-                          can be the algorithm name, a Singularity image,
-                          a file, or a Docker image
+                          can be an algorithm name, a file, or a Docker image
         :type algorithm: str
         :param temp_dir: Path to temporary directory used by some of the
                          :py:class:`~cdapsutil.runner.Runner` runners
         :type temp_dir: str
-        :param arguments: Flags to pass to algorithm. Should be in format
-                          where key is parameter name and value is parameter
-                          value. For flags this value should be ``None``
+        :param arguments: Any custom parameters for algorithm. The
+                          parameters should all be of type :py:class:`str`
+                          If custom parameter is just a flag set
+                          value to ``None``
+                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :type arguments: dict
         :param weight_col: Name of column containing weights, Set to ``None``
                            for unweighted
