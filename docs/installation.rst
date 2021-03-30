@@ -8,24 +8,21 @@ Installation
 From Pypi
 ------------
 
-Coming soon...
-
-..
-    Stable release
-    --------------
+Stable release
+--------------
 
 
-    To install CDAPS Python Utilities, run this command in your terminal:
+To install CDAPS Python Utilities, run this command in your terminal:
 
-    .. code-block:: console
+.. code-block:: console
 
-        $ pip install cdapsutil
+    pip install cdapsutil
 
-    If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-    you through the process.
+If you don't have `pip`_ installed, this `Python installation guide`_ can guide
+you through the process.
 
-    .. _pip: https://pip.pypa.io
-    .. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
+.. _pip: https://pip.pypa.io
+.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
 
 
 From sources
@@ -37,19 +34,19 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/idekerlab/cdapsutil
+    git clone git://github.com/idekerlab/cdapsutil
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl  -OL https://github.com/idekerlab/cdapsutil/tarball/master
+    curl  -OL https://github.com/idekerlab/cdapsutil/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
 .. code-block:: console
 
-    $ python setup.py install
+    python setup.py install
 
 
 .. _Github repo: https://github.com/idekerlab/cdapsutil

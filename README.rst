@@ -40,6 +40,12 @@ Compatibility
 Installation
 ---------------
 
+.. code-block:: console
+
+    pip install cdapsutil
+
+or directly via:
+
 .. code-block::
 
     git clone https://github.com/idekerlab/cdapsutil
