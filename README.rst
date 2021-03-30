@@ -23,7 +23,7 @@ algorithms via Python
 
 .. warning::
 
-    This code is in alpha state and will change
+    cdapsutil is experimental and may contain errors and interfaces may change
 
 Dependencies
 -------------
