@@ -17,16 +17,16 @@ Runners
 --------------------------
 
 Runners provide different ways to run Community Detection Algorithms packaged
-as `Docker <https://www.docker.com/>`_ containers built for
-`CDAPS service <https://cdaps.readthedocs.io/>`_.
+as `Docker <https://www.docker.com/>`__ containers built for
+`CDAPS service <https://cdaps.readthedocs.io/>`__.
 
 **Currently built Runners:**
 
 * :py:class:`~cdapsutil.runner.ExternalResultsRunner` - Parses already run output file/stream
 
-* :py:class:`~cdapsutil.runner.DockerRunner` - Runs locally via `Docker <https://www.docker.com>`_
+* :py:class:`~cdapsutil.runner.DockerRunner` - Runs locally via `Docker <https://www.docker.com>`__
 
-* :py:class:`~cdapsutil.runner.ServiceRunner` - Runs remotely via `CDAPS REST Service <https://cdaps.readthedocs.io/>`_
+* :py:class:`~cdapsutil.runner.ServiceRunner` - Runs remotely via `CDAPS REST Service <https://cdaps.readthedocs.io/>`__
 
 
 .. autoclass:: cdapsutil.runner.DockerRunner
