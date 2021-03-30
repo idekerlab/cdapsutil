@@ -87,11 +87,9 @@ class Runner(object):
 
     Currently built Runners:
 
-    :py:class:`ExternalResultRunner` - Parses already run output file/stream
+    :py:class:`ExternalResultsRunner` - Parses already run output file/stream
 
     :py:class:`DockerRunner` - Runs locally via Docker
-
-    :py:class:`SingularityRunner` - Runs locally via Singularity
 
     :py:class:`ServiceRunner` - Runs remotely via CDAPS REST Service
 
@@ -109,9 +107,9 @@ class Runner(object):
 
     def get_docker_image(self):
         """
-        Gets the name of the docker image
+        Gets the name of the Docker image
 
-        :return: Name of docker image or empty string if
+        :return: Name of Docker image or empty string if
                  unknown
         :rtype: str
         """
@@ -119,7 +117,7 @@ class Runner(object):
 
     def set_docker_image(self, docker_image):
         """
-        Sets docker image
+        Sets Docker image
         :return:
         """
         self._docker_image_name = docker_image
@@ -135,8 +133,10 @@ class Runner(object):
 
     def set_algorithm_name(self, algoname):
         """
+        Sets algorithm name
 
-        :param algoname:
+        :param algoname: Name of algorithm
+        :type algoname: str
         :return:
         """
         self._algorithm_name = algoname
@@ -158,7 +158,11 @@ class Runner(object):
         :param net_cx: Network to use as input
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm:
-        :param arguments: Flags
+        :param arguments: Any custom parameters for algorithm. The
+                          parameters should all be of type :py:class:`str`
+                          If custom parameter is just a flag set
+                          value to ``None``
+                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :param temp_dir:
         :raises CommunityDetectionError: Will always raise this
         :return: None
@@ -168,14 +172,16 @@ class Runner(object):
     @staticmethod
     def _write_edge_list(net_cx, tempdir=None, weight_col=None):
         """
-        Writes edges from 'net_cx' network to file named 'input.edgelist'
+        Writes edges from 'net_cx' network to file named ``input.edgelist``
         in 'tempdir' as a tab delimited file of source target
+
+        **WARNING** 'weight_col' parameter is currently ignored
 
         :param net_cx: Network to extract edges from
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param tempdir: directory to write edge list to
+        :param tempdir: Directory to write edge list to
         :type tempdir: str
-        :return: path to edgelist file
+        :return: Path to edgelist file
         :rtype: str
         """
         edgelist = os.path.join(tempdir, 'input.edgelist')
@@ -187,14 +193,15 @@ class Runner(object):
     @staticmethod
     def _get_edge_list(net_cx, weight_col=None):
         """
-        Writes edges from 'net_cx' network to file named 'input.edgelist'
-        in 'tempdir' as a tab delimited file of source target
+        Gets edges from 'net_cx' network.
+
+        **WARNING** 'weight_col' parameter is currently ignored
 
         :param net_cx: Network to extract edges from
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param tempdir: directory to write edge list to
-        :type tempdir: str
-        :return: path to edgelist file
+        :param weight_col: Name of column to extract weights from
+        :type weight_col: str
+        :return: Edges in tab delimited format
         :rtype: str
         """
         edgelist = []
@@ -269,14 +276,19 @@ class ServiceRunner(Runner):
     def run(self, net_cx=None, algorithm=None, arguments=None,
             temp_dir=None):
         """
-        Runs docker command returning a tuple
-        with error code, standard out and standard error
+        Runs 'algorithm' via CDAPS REST Service
+        with error code, standard out and standard error derived
+        from the service call
 
         :param net_cx: Network to use as input
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm: Algorithm to run
         :type algorithm: str
-        :param arguments: flags
+        :param arguments: Any custom parameters for algorithm. The
+                          parameters should all be of type :py:class:`str`
+                          If custom parameter is just a flag set
+                          value to ``None``
+                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :type arguments: dict
         :param temp_dir: Ignored
         :type temp_dir: str
@@ -310,10 +322,10 @@ class ServiceRunner(Runner):
 
         :param algorithm: name of algorithm to call
         :type algorithm: str
-        :param data: the data to pass to the algorithm
-        :type object: could be str, dict, list or anything that can be
+        :param data: The data to pass to the algorithm
+        :type object: Could be str, dict, list or anything that can be
                       converted to JSON
-        :param arguments: any custom parameters for algorithm. The
+        :param arguments: Any custom parameters for algorithm. The
                           parameters should all be of type :py:class:`str`
                           If custom parameter is just a flag set
                           value to ``None``
@@ -555,7 +567,11 @@ class DockerRunner(Runner):
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
         :param algorithm: docker image to run
         :type algorithm: str
-        :param arguments: flags
+        :param arguments: Any custom parameters for algorithm. The
+                          parameters should all be of type :py:class:`str`
+                          If custom parameter is just a flag set
+                          value to ``None``
+                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :type arguments: dict
         :param temp_dir: temporary directory where docker can be run
                          this should be a directory that docker can
@@ -613,8 +629,14 @@ class ExternalResultsRunner(Runner):
     def run(self, net_cx=None, algorithm=None, arguments=None,
             temp_dir=None):
         """
-        Runs Singularity command returning a tuple
-        with error code, standard out and standard error
+        Assumes `algorithm` contains path to file with result of invocation
+        of algorithm. This allows for externally run algorithms to be
+        loaded into this library. A tuple is returned with return code,
+        result and standard error of result. In this implementation the exit
+        code is always ``0`` unless the contents of the file is in JSON format
+        of a result from CDAPS REST Service in which case a ``1`` return code
+        may be sent if the status was **NOT** ``complete``. Also any data in
+        ``message`` field will be set in the standard error of result.
 
         :param net_cx: Ignored
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
