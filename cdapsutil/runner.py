@@ -103,6 +103,9 @@ class Runner(object):
         """
         self._docker_image_name = ''
         self._algorithm_name = ''
+        LOGGER.warning('DISCLAIMIER: cdapsutil is experimental '
+                       'and may contain errors and interfaces '
+                       'may change')
 
     def get_docker_image(self):
         """
@@ -594,7 +597,7 @@ class DockerRunner(Runner):
                          ' seconds')
 
 
-class ExternalResultsRunner(object):
+class ExternalResultsRunner(Runner):
     """
     :py:class:`Runner` returns an already generated result set
     via `algorithm` parameter in `run()` method. This allows
@@ -630,18 +633,25 @@ class ExternalResultsRunner(object):
         if algorithm is None:
             raise CommunityDetectionError('Algorithm is None')
 
+        if not os.path.isfile(algorithm):
+            raise CommunityDetectionError(str(algorithm) + ' is not a file')
         e_code = 0
-        err = ''
-        with open(algorithm, 'r') as f:
-            result = f.read()
-            try:
-                if result.lstrip().startswith('{'):
-                    json_res = json.load(result)
-                    if 'status' in result:
-                        if json_res['status'] != 'complete':
-                            e_code = 1
-                    if 'message' in result:
-                        err = json_res['message']
-            except json.JSONDecodeError:
-                pass
-        return e_code, result, err
+        err = None
+        try:
+            with open(algorithm, 'r') as f:
+                result = f.read()
+                try:
+                    if result.lstrip().startswith('{'):
+                        json_res = json.loads(result)
+                        if 'status' in result:
+                            if str(json_res['status']) != 'complete':
+                                e_code = 1
+                        if 'message' in result:
+                            err = json_res['message']
+                except json.JSONDecodeError:
+                    pass
+            self.set_docker_image('Loaded from file: ' + algorithm)
+            self.set_algorithm_name(os.path.basename(algorithm))
+            return e_code, result, err
+        except OSError as oe:
+            raise CommunityDetectionError('Caught OSError : ' + str(oe))
