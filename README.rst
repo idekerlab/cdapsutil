@@ -44,8 +44,7 @@ Installation
 
     git clone https://github.com/idekerlab/cdapsutil
     cd cdapsutil
-    make dist
-    pip install dist/cdapsutil*whl
+    python setup.py install
 
 Usage
 -------
@@ -54,10 +53,21 @@ Run Community Detection
 
 .. code-block::
 
-    from cdapsutil.cd import CommunityDetection
+    import json
+    import cdapsutil
+    import ndex2
 
-    # Run HiDeF on CDAPS REST service where net_cx is a NiceCXNetwork of input network
-    hier_net = cd.run_community_detection(net_cx, algo_or_docker='hidef', via_service=True)
+
+    # Download BioGRID: Protein-Protein Interactions (SARS-CoV) from NDEx
+    client = ndex2.client.Ndex2()
+    client_resp = client.get_network_as_cx_stream('669f30a3-cee6-11ea-aaef-0ac135e8bacf')
+    net_cx = ndex2.create_nice_cx_from_raw_cx(json.loads(client_resp.content))
+
+    # Create CommunityDetection object
+    cd = cdapsutil.CommunityDetection()
+
+    # Run HiDeF on CDAPS REST service
+    hier_net = cd.run_community_detection(net_cx, algorithm='hidef')
 
 
 Run Functional Enrichment
