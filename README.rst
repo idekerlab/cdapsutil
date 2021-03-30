@@ -74,6 +74,14 @@ Run Functional Enrichment
 
 Coming soon...
 
+Cite CDAPS
+-----------
+
+If you find this utility and service useful, please cite:
+
+Singhal A, Cao S, Churas C, Pratt D, Fortunato S, Zheng F, et al. (2020) Multiscale community detection in Cytoscape. PLoS Comput Biol 16(10): e1008239. https://doi.org/10.1371/journal.pcbi.1008239
+
+
 Credits
 ---------
 
