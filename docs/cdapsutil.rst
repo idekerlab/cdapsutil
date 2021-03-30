@@ -22,7 +22,7 @@ as `Docker <https://www.docker.com/>`_ containers built for
 
 **Currently built Runners:**
 
-* :py:class:`~cdapsutil.runner.ExternalResultRunner` - Parses already run output file/stream
+* :py:class:`~cdapsutil.runner.ExternalResultsRunner` - Parses already run output file/stream
 
 * :py:class:`~cdapsutil.runner.DockerRunner` - Runs locally via `Docker <https://www.docker.com>`_
 
@@ -30,6 +30,9 @@ as `Docker <https://www.docker.com/>`_ containers built for
 
 
 .. autoclass:: cdapsutil.runner.DockerRunner
+    :members:
+
+.. autoclass:: cdapsutil.runner.ExternalResultsRunner
     :members:
 
 .. autoclass:: cdapsutil.runner.ServiceRunner
