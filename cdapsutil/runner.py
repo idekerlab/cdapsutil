@@ -584,6 +584,85 @@ class ServiceRunner(Runner):
                     pass
 
 
+class LayoutServiceRunner(ServiceRunner):
+    """
+    :py:class:`Runner` that runs `CDAPS Service containers`
+    remotely via `CDAPS Service <https://cdaps.readthedocs.io>`__
+
+    :param service_endpoint: URL for CDAPS REST Service
+    :type service_endpoint: str
+    :param requests_timeout: Timeout in seconds to pass to
+                             :py:mod:`requests` module for all web requests
+    :type requests_timeout: int or float
+    :param max_retries: Number of times to check for task completion
+    :type max_retries: int
+    :param poll_interval: Time to wait in seconds between checks for task
+                          completion
+    :type poll_interval: int
+    """
+
+    REST_ENDPOINT = 'http://cytolayouts.ucsd.edu/cd/' \
+                    'communitydetection/v1'
+    """
+    Default Rest endpoint
+    """
+
+    def __init__(self, service_endpoint=REST_ENDPOINT, requests_timeout=30,
+                 max_retries=600, poll_interval=1):
+        """
+        Constructor. See class docs for usage
+
+        """
+        super().__init__()
+
+        self._service_endpoint = service_endpoint
+        self._requests_timeout = requests_timeout
+        self._useragent = 'cdapsutil/' +\
+                          str(cdapsutil.__version__)
+        self._max_retries = max_retries
+        self._poll_interval = poll_interval
+
+    def run(self, net_cx=None, algorithm=None, arguments=None,
+            temp_dir=None):
+        """
+        Runs 'algorithm' via `CDAPS service <https://cdaps.readthedocs.io/>`__
+        with error code, standard out and standard error derived
+        from the service call
+
+        :param net_cx: Network to use as input
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param algorithm: Algorithm to run
+        :type algorithm: str
+        :param arguments: Any custom parameters for algorithm. The
+                          parameters should all be of type :py:class:`str`
+                          If custom parameter is just a flag set
+                          value to ``None``
+                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
+        :type arguments: dict
+        :param temp_dir: Ignored
+        :type temp_dir: str
+        :raises CommunityDetectionError: If there is an error in running job
+                                         outside of non-zero exit code from
+                                         command
+        :return: (return code, stdout from subprocess, stderr from subprocess)
+        :rtype: tuple
+        """
+        task_id = self.submit(algorithm=algorithm, data=net_cx.to_cx(),
+                              arguments=arguments)['id']
+        LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
+        self.set_algorithm_name(algorithm)
+        self.wait_for_task_to_complete(task_id,
+                                                max_retries=self._max_retries,
+                                                poll_interval=self._poll_interval)
+        resp_as_json = self.get_result(task_id)
+        if resp_as_json['status'] != 'complete':
+            CommunityDetectionError('Error running algorithm. '
+                                    'Raw JSON: ' +
+                                    str(resp_as_json))
+
+        return self._extract_exit_out_and_error_from_json(resp_as_json)
+
+
 class DockerRunner(Runner):
     """
     :py:class:`Runner` that runs CDAPS Service Docker containers
