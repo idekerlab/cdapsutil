@@ -77,6 +77,6 @@ class Layout(object):
         if isinstance(result, list):
             return result
         try:
-            layout = json.loads(result)
+            return json.loads(result)
         except JSONDecodeError as je:
             raise CommunityDetectionError('Error parsing result: ' + str(je))

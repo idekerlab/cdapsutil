@@ -52,7 +52,7 @@ class TestRunner(unittest.TestCase):
 
         edge_dict = self.get_edge_dict(net_cx)
 
-        res = Runner._get_edge_list(net_cx)
+        res = Runner.get_edge_list(net_cx)
         for entry in res.split('\n'):
             if len(entry.strip()) == 0:
                 continue
@@ -67,7 +67,7 @@ class TestRunner(unittest.TestCase):
 
             edge_dict = self.get_edge_dict(net_cx)
 
-            input_edgelist = Runner._write_edge_list(net_cx, temp_dir)
+            input_edgelist = Runner.write_edge_list(net_cx, temp_dir)
             with open(input_edgelist, 'r') as f:
                 for entry in f:
                     if len(entry.strip()) == 0:

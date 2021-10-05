@@ -79,6 +79,117 @@ class ProcessWrapper(object):
         return p.returncode, out, err
 
 
+class DataWriter(object):
+    """
+    Base class for objects that converts data passed in
+    into format suitable as input for algorithms
+    packaged in `CDAPS service <https://cdaps.readthedocs.io/>`__
+    """
+
+    def __init__(self):
+        pass
+
+    def get_inputdata(self, input_data=None):
+        """
+        Must be implemented by subclasses. Will always raise
+        :py:class:`cdapsutil.exceptions.CommunityDetectionError`
+
+        :param inputdata: Input data to convert
+        :return:
+        """
+        raise CommunityDetectionError('Not implemented for this DataWriter')
+
+    def write_inputdata(self, input_data=None, output_stream=None):
+        """
+        Must be implemented by subclasses. Will always raise
+        :py:class:`cdapsutil.exceptions.CommunityDetectionError`
+
+        :param input_data: Input data to convert
+        :param output_stream: Stream to write converted data to
+        :return:
+        """
+        raise CommunityDetectionError('Not implemented for this DataWriter')
+
+
+class NiceCXNetworkWriter(DataWriter):
+    """
+
+    """
+    def __init__(self):
+        """
+        See class documentation
+        """
+        pass
+
+    def get_inputdata(self, input_data=None):
+        """
+
+        :param input_data:
+        :type input_data: :py:class:~ndex2.nice_cx_network.NiceCXNetwork`
+        :return: **input_data** in CX format
+        :rtype dict
+        """
+        return input_data.to_cx()
+
+    def write_inputdata(self, input_data=None, output_stream=None):
+        """
+
+        :param input_data:
+        :param output_stream:
+        :return:
+        """
+        json.dump(input_data.to_cx(), output_stream)
+
+
+class NiceCXNetworkEdgeListWriter(DataWriter):
+    """
+    Writes edge list with optional weight column from
+    :py:class:`~ndex2.nice_cx_network.NiceCXNetwork`
+    passed in.
+    """
+    def __init__(self, weight_column=None):
+        """
+        See class documentation for usage
+        """
+        super().__init__()
+        self._weight_column = weight_column
+
+    def get_inputdata(self, input_data=None):
+
+        """
+        Gets edges from **input_data** network.
+
+        :param input_data: Network to extract edges from
+        :type input_data: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :return: Edges in tab delimited format
+        :rtype: str
+        """
+        edgelist = []
+        for edge_id, edge_obj in input_data.get_edges():
+            edgelist.append(str(edge_obj['s']) + '\t' +
+                            str(edge_obj['t']) + '\n')
+        return ''.join(edgelist)
+
+    def write_inputdata(self, input_data=None, output_stream=None):
+        """
+        Writes edges from **input_data** to **output_stream** output
+        stream in tab delimited format of source target (weight if defined in constructor)
+        :param input_data:
+        :type input_data: :py:class:`~ndex2.nice_cx_network.NiceCXNetwork`
+        :param output_stream: Output stream to write to. It is the caller's
+                              responsibility to close
+        :type output_stream: bytes io output stream
+        :raises CommunityDetectionError: If **input_data** is not
+        :return:
+        """
+        try:
+            for edge_id, edge_obj in input_data.get_edges():
+                output_stream.write(str(edge_obj['s']) + '\t' +
+                                    str(edge_obj['t']) + '\n')
+        except Exception as e:
+            raise CommunityDetectionError('Caught Error: ' + str(e))
+
+
 class Runner(object):
     """
     Base class for objects that run Community Detection Algorithms packaged as
@@ -93,17 +204,43 @@ class Runner(object):
 
     :py:class:`ServiceRunner` - Runs remotely via CDAPS Service
 
+    :param data_writer: If set, extracts and converts
+                       :py:class:`~ndex2.nice_cx_network.NiceCXNetwork`
+                       to format suitable as input for algorithm to be run.
+    :type data_writer: :py:class:`DataWriter`
+
     """
 
-    def __init__(self):
+    def __init__(self, data_writer=None):
         """
         Constructor
         """
         self._docker_image_name = ''
         self._algorithm_name = ''
+        if data_writer is None:
+            self._data_writer = NiceCXNetworkEdgeListWriter()
+        else:
+            self._data_writer = data_writer
         LOGGER.warning('DISCLAIMIER: cdapsutil is experimental '
                        'and may contain errors and interfaces '
                        'may change')
+
+    def get_data_writer(self):
+        """
+        Gets :py:class:`DataWriter`
+        :return:
+        :rtype: :py:class:`DataWriter`
+        """
+        return self._data_writer
+
+    def set_data_writer(self, data_writer=None):
+        """
+        Sets :py:class:`DataWriter`
+        :param data_writer:
+        :type data_writer: :py:class:`DataWriter`
+        :return:
+        """
+        self._data_writer = data_writer
 
     def get_docker_image(self):
         """
@@ -169,47 +306,6 @@ class Runner(object):
         """
         raise CommunityDetectionError('Not implemented for this Runner')
 
-    @staticmethod
-    def _write_edge_list(net_cx, tempdir=None, weight_col=None):
-        """
-        Writes edges from `net_cx` network to file named ``input.edgelist``
-        in `tempdir` as a tab delimited file of source target
-
-        **WARNING** `weight_col` parameter is currently ignored
-
-        :param net_cx: Network to extract edges from
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param tempdir: Directory to write edge list to
-        :type tempdir: str
-        :return: Path to edgelist file
-        :rtype: str
-        """
-        edgelist = os.path.join(tempdir, 'input.edgelist')
-        with open(edgelist, 'w') as f:
-            for edge_id, edge_obj in net_cx.get_edges():
-                f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
-        return edgelist
-
-    @staticmethod
-    def _get_edge_list(net_cx, weight_col=None):
-        """
-        Gets edges from 'net_cx' network.
-
-        **WARNING** 'weight_col' parameter is currently ignored
-
-        :param net_cx: Network to extract edges from
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param weight_col: Name of column to extract weights from
-        :type weight_col: str
-        :return: Edges in tab delimited format
-        :rtype: str
-        """
-        edgelist = []
-
-        for edge_id, edge_obj in net_cx.get_edges():
-            edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
-        return ''.join(edgelist)
-
 
 class ServiceRunner(Runner):
     """
@@ -240,15 +336,16 @@ class ServiceRunner(Runner):
     """
 
     def __init__(self, service_endpoint=REST_ENDPOINT, requests_timeout=30,
-                 max_retries=600, poll_interval=1):
+                 max_retries=600, poll_interval=1,
+                 data_writer=NiceCXNetworkEdgeListWriter()):
         """
         Constructor. See class docs for usage
 
         """
-        super().__init__()
+        super().__init__(data_writer=data_writer)
 
         self._service_endpoint = service_endpoint
-        self._requests_timeout=requests_timeout
+        self._requests_timeout = requests_timeout
         self._useragent = 'cdapsutil/' +\
                           str(cdapsutil.__version__)
         self._max_retries = max_retries
@@ -301,7 +398,7 @@ class ServiceRunner(Runner):
         :return: (return code, stdout from subprocess, stderr from subprocess)
         :rtype: tuple
         """
-        edgelist = self._get_edge_list(net_cx)
+        edgelist = self._data_writer.get_inputdata(input_data=net_cx)
         task_id = self.submit(algorithm=algorithm, data=edgelist,
                               arguments=arguments)['id']
         LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
@@ -613,54 +710,10 @@ class LayoutServiceRunner(ServiceRunner):
         Constructor. See class docs for usage
 
         """
-        super().__init__()
-
-        self._service_endpoint = service_endpoint
-        self._requests_timeout = requests_timeout
-        self._useragent = 'cdapsutil/' +\
-                          str(cdapsutil.__version__)
-        self._max_retries = max_retries
-        self._poll_interval = poll_interval
-
-    def run(self, net_cx=None, algorithm=None, arguments=None,
-            temp_dir=None):
-        """
-        Runs 'algorithm' via `CDAPS service <https://cdaps.readthedocs.io/>`__
-        with error code, standard out and standard error derived
-        from the service call
-
-        :param net_cx: Network to use as input
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param algorithm: Algorithm to run
-        :type algorithm: str
-        :param arguments: Any custom parameters for algorithm. The
-                          parameters should all be of type :py:class:`str`
-                          If custom parameter is just a flag set
-                          value to ``None``
-                          Example: ``{'--flag': None, '--cutoff': '0.2'}``
-        :type arguments: dict
-        :param temp_dir: Ignored
-        :type temp_dir: str
-        :raises CommunityDetectionError: If there is an error in running job
-                                         outside of non-zero exit code from
-                                         command
-        :return: (return code, stdout from subprocess, stderr from subprocess)
-        :rtype: tuple
-        """
-        task_id = self.submit(algorithm=algorithm, data=net_cx.to_cx(),
-                              arguments=arguments)['id']
-        LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
-        self.set_algorithm_name(algorithm)
-        self.wait_for_task_to_complete(task_id,
-                                                max_retries=self._max_retries,
-                                                poll_interval=self._poll_interval)
-        resp_as_json = self.get_result(task_id)
-        if resp_as_json['status'] != 'complete':
-            CommunityDetectionError('Error running algorithm. '
-                                    'Raw JSON: ' +
-                                    str(resp_as_json))
-
-        return self._extract_exit_out_and_error_from_json(resp_as_json)
+        super().__init__(service_endpoint=service_endpoint,
+                         requests_timeout=requests_timeout,
+                         max_retries=max_retries, poll_interval=poll_interval,
+                         data_writer=NiceCXNetworkWriter())
 
 
 class DockerRunner(Runner):
@@ -674,11 +727,12 @@ class DockerRunner(Runner):
     :type processwrapper: :py:class:`ProcessWrapper`
     """
     def __init__(self, binary_path='docker',
-                 processwrapper=ProcessWrapper()):
+                 processwrapper=ProcessWrapper(),
+                 data_writer=NiceCXNetworkEdgeListWriter()):
         """
         Constructor
         """
-        super().__init__()
+        super().__init__(data_writer=data_writer)
         self._dockerpath = binary_path
         self._procwrapper = processwrapper
 
@@ -712,13 +766,16 @@ class DockerRunner(Runner):
         if algorithm is None:
             raise CommunityDetectionError('Algorithm is None')
 
-        edgelist = self._write_edge_list(net_cx, tempdir=temp_dir)
+        outfile = os.path.join(temp_dir, 'input.file')
+        with open(outfile, 'w') as f:
+            self._data_writer.write_inputdata(input_data=net_cx,
+                                              output_stream=f)
         full_args = [self._dockerpath, 'run',
                      '--rm', '-v',
                      temp_dir + ':' +
                      temp_dir,
                      algorithm,
-                     edgelist]
+                     outfile]
         self.set_docker_image(algorithm)
         self.set_algorithm_name(algorithm)
         if arguments is not None:
