@@ -224,8 +224,8 @@ class TestServiceRunner(unittest.TestCase):
                 sr.submit(algorithm='myalgo', data={'hi': 'there'})
                 self.fail('Expected CommunityDetectionError')
         except CommunityDetectionError as ce:
-            self.assertTrue('Unable to parse result from submit: '
-                            'Expecting' in str(ce))
+            self.assertTrue('Unable to parse result '
+                            'from submit: ' in str(ce))
 
     def test_submit_success(self):
         sr = ServiceRunner(service_endpoint='http://foo')
