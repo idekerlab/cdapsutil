@@ -18,6 +18,7 @@ import unittest
 import requests_mock
 
 import cdapsutil
+from cdapsutil.exceptions import CommunityDetectionError
 import ndex2
 
 
@@ -52,6 +53,59 @@ class TestCommunityDetection(unittest.TestCase):
         except cdapsutil.CommunityDetectionError as ce:
             self.assertEqual('runner is None', str(ce))
 
+    def test_get_network_name(self):
+        er = cdapsutil.ExternalResultsRunner()
+        cd = cdapsutil.CommunityDetection(runner=er)
+
+        # try passing None
+        self.assertEqual('unknown', cd._get_network_name(None))
+
+        # try network with no call to set_name() made
+        net_cx = ndex2.nice_cx_network.NiceCXNetwork()
+        self.assertEqual('unknown', cd._get_network_name(net_cx=net_cx))
+
+        # try network where name set to None
+        net_cx = ndex2.nice_cx_network.NiceCXNetwork()
+        net_cx.set_name(None)
+        self.assertEqual('unknown', cd._get_network_name(net_cx=net_cx))
+
+        # try network where name set to empty string
+        net_cx = ndex2.nice_cx_network.NiceCXNetwork()
+        net_cx.set_name('')
+        self.assertEqual('', cd._get_network_name(net_cx=net_cx))
+
+    def test_run_community_detection_with_weight_col(self):
+        er = cdapsutil.ExternalResultsRunner()
+        cd = cdapsutil.CommunityDetection(runner=er)
+        net_cx = ndex2.nice_cx_network.NiceCXNetwork()
+        try:
+            cd.run_community_detection(net_cx, algorithm='foo',
+                                       weight_col='somecol')
+        except CommunityDetectionError as ce:
+            self.assertEqual('Weighted graphs are not yet supported',
+                             str(ce))
+
+    def test_derive_hierarchy_from_result_with_none_result(self):
+        er = cdapsutil.ExternalResultsRunner()
+        cd = cdapsutil.CommunityDetection(runner=er)
+
+        try:
+            cd._derive_hierarchy_from_result(None)
+        except CommunityDetectionError as ce:
+            self.assertEqual('Result is None',
+                             str(ce))
+
+    def test_derive_hierarchy_from_result_with_dict_missing_result(self):
+        er = cdapsutil.ExternalResultsRunner()
+        cd = cdapsutil.CommunityDetection(runner=er)
+
+        try:
+            cd._derive_hierarchy_from_result({'hi': 'there'})
+        except CommunityDetectionError as ce:
+            self.assertEqual('Expected result key in JSON',
+                             str(ce))
+
+
     def test_service_with_successful_mock_data(self):
         sr = cdapsutil.ServiceRunner(service_endpoint='http://foo',
                                      max_retries=1, poll_interval=0)
@@ -85,6 +139,20 @@ class TestCommunityDetection(unittest.TestCase):
         self.assertEqual(68, len(hier_net.get_nodes()))
         self.assertEqual(67, len(hier_net.get_edges()))
         self.assertEqual('cdinfomap_out.json_(none)_HIV-human PPI',
+                         hier_net.get_name())
+        self.assertEqual('0', hier_net.get_network_attribute('__CD_OriginalNetwork')['v'])
+
+    def test_external_with_network_name_set_to_none(self):
+        er = cdapsutil.ExternalResultsRunner()
+        cd = cdapsutil.CommunityDetection(runner=er)
+        datafile = os.path.join(self.get_data_dir(), 'cdinfomap_out.json')
+        net_cx = self.get_human_hiv_as_nice_cx()
+        net_cx.set_name(None)
+        hier_net = cd.run_community_detection(net_cx=net_cx,
+                                              algorithm=datafile)
+        self.assertEqual(68, len(hier_net.get_nodes()))
+        self.assertEqual(67, len(hier_net.get_edges()))
+        self.assertEqual('cdinfomap_out.json_(none)_unknown',
                          hier_net.get_name())
         self.assertEqual('0', hier_net.get_network_attribute('__CD_OriginalNetwork')['v'])
 
