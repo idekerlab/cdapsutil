@@ -109,6 +109,20 @@ class CommunityDetection(object):
 
         return hier_net
 
+    def _get_network_name(self, net_cx=None):
+        """
+        Gets name of network
+
+        :return: name of network or 'unknown if not set
+        :rtype: str
+        """
+        if net_cx is None:
+            return 'unknown'
+        net_cx_name = net_cx.get_name()
+        if net_cx_name is None:
+            return 'unknown'
+        return net_cx_name
+
     def _create_empty_hierarchy_network(self, docker_image=None,
                                         algo_name=None,
                                         source_network=None,
@@ -137,13 +151,14 @@ class CommunityDetection(object):
                 if arguments[a] is not None:
                     cust_params += arguments[a] + ' '
 
+        src_network_name = self._get_network_name(source_network)
         hier_net = NiceCXNetwork()
-        hier_net.set_name(algo_name + '_(none)_' + source_network.get_name())
+        hier_net.set_name(algo_name + '_(none)_' + src_network_name)
         hier_net.set_network_attribute('__CD_OriginalNetwork',
                                        values='0', type='long')
         hier_net.set_network_attribute('description',
                                        values='Original network: ' +
-                                              source_network.get_name() +
+                                              src_network_name +
                                               '\n ' +
                                               'Algorithm used for '
                                               'community detection: ' +
@@ -153,7 +168,7 @@ class CommunityDetection(object):
                                               'CustomParameters: {' +
                                               cust_params + '}')
         hier_net.set_network_attribute('prov:wasDerivedFrom',
-                                       values=source_network.get_name())
+                                       values=src_network_name)
         hier_net.set_network_attribute('prov:wasGeneratedBy',
                                        values='cdapsutil ' +
                                               cdapsutil.__version__ + ' ' +
