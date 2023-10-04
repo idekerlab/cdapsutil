@@ -2,6 +2,12 @@
 History
 =======
 
+0.2.1 (2023-10-04)
+----------------------
+
+* Removed scale, x, y, and z coordinates from visual properties aspect of default style
+  stored in this tool. Done so UI tools will just fit content
+
 0.2.0 (2022-10-04)
 ----------------------
 
