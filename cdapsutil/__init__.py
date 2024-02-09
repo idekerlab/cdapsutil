@@ -2,7 +2,7 @@
 
 __author__ = 'Chris Churas'
 __email__ = 'churas.camera@gmail.com'
-__version__ = '0.2.2a1'
+__version__ = '0.2.2'
 
 from .cd import CommunityDetection
 from .exceptions import CommunityDetectionError
