@@ -101,9 +101,6 @@ class Runner(object):
         """
         self._docker_image_name = ''
         self._algorithm_name = ''
-        LOGGER.warning('DISCLAIMIER: cdapsutil is experimental '
-                       'and may contain errors and interfaces '
-                       'may change')
 
     def get_docker_image(self):
         """
