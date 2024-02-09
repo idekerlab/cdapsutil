@@ -2,6 +2,11 @@
 History
 =======
 
+0.2.2 (2024-02-09)
+----------------------
+
+* Removed the "DISCLAIMER: cdapsutil is experimental..." warning level log message
+
 0.2.1 (2023-10-04)
 ----------------------
 
