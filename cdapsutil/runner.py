@@ -6,6 +6,9 @@ import logging
 import json
 import time
 import requests
+from ndex2.cx2 import CX2Network
+from ndex2.nice_cx_network import NiceCXNetwork
+
 import cdapsutil
 
 from cdapsutil.exceptions import CommunityDetectionError
@@ -183,8 +186,13 @@ class Runner(object):
         """
         edgelist = os.path.join(tempdir, 'input.edgelist')
         with open(edgelist, 'w') as f:
-            for edge_id, edge_obj in net_cx.get_edges():
-                f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+            # TODO: done
+            if isinstance(net_cx, NiceCXNetwork):
+                for edge_id, edge_obj in net_cx.get_edges():
+                    f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+            else:
+                for edge_id, edge_obj in net_cx.get_edges().items():
+                    f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
         return edgelist
 
     @staticmethod
@@ -201,10 +209,14 @@ class Runner(object):
         :return: Edges in tab delimited format
         :rtype: str
         """
+        # TODO: done
         edgelist = []
-
-        for edge_id, edge_obj in net_cx.get_edges():
-            edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+        if isinstance(net_cx, NiceCXNetwork):
+            for edge_id, edge_obj in net_cx.get_edges():
+                edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
+        else:
+            for edge_id, edge_obj in net_cx.get_edges().items():
+                edgelist.append(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
         return ''.join(edgelist)
 
 

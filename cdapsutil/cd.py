@@ -6,12 +6,302 @@ import json
 import math
 from json.decoder import JSONDecodeError
 import ndex2
+from ndex2 import constants
+from ndex2.cx2 import CX2Network
 from ndex2.nice_cx_network import NiceCXNetwork
 import cdapsutil
 from cdapsutil.runner import ServiceRunner
 from cdapsutil.exceptions import CommunityDetectionError
 
 LOGGER = logging.getLogger(__name__)
+
+
+class HierarchyCreatorHelper:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def _get_network_name(net_cx=None):
+        """
+        Gets name of network
+
+        :return: name of network or 'unknown if not set
+        :rtype: str
+        """
+        if net_cx is None:
+            return 'unknown'
+        net_cx_name = net_cx.get_name()
+        if net_cx_name is None:
+            return 'unknown'
+        return net_cx_name
+
+
+class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
+
+    def __init__(self):
+        super().__init__()
+
+    @staticmethod
+    def _get_node_dictionary(net_cx):
+        """
+        Creates a dictionary from 'net_cx' passed in where
+        key is id of node and value is name of node
+
+        :param net_cx:
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork` or :py:class:`ndex2.cx2.CX2Network`
+        :return: { 'NODEID': NODE_NAME }
+        :rtype: dict
+        """
+
+        node_id_set = set()
+        node_dict = dict()
+        for node_id, node_obj in net_cx.get_nodes().items():
+            node_dict[node_id] = node_obj[constants.NODE_NAME_EXPANDED]
+            node_id_set.add(node_id)
+        return node_dict
+
+
+class CXHierarchyCreatorHelper(HierarchyCreatorHelper):
+
+    def __init__(self):
+        super().__init__()
+
+    @staticmethod
+    def _get_node_dictionary(net_cx):
+        """
+        Creates a dictionary from 'net_cx' passed in where
+        key is id of node and value is name of node
+
+        :param net_cx:
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork` or :py:class:`ndex2.cx2.CX2Network`
+        :return: { 'NODEID': NODE_NAME }
+        :rtype: dict
+        """
+
+        node_id_set = set()
+        node_dict = dict()
+        for node_id, node_obj in net_cx.get_nodes():
+            node_dict[node_id] = node_obj['n']
+            node_id_set.add(node_id)
+        return node_dict
+
+    def _create_empty_hierarchy_network(self, docker_image=None,
+                                        algo_name=None,
+                                        source_network=None,
+                                        arguments=None):
+        """
+        Creates an empty hierarchy network with appropriate network attributes
+
+        :param docker_image: Docker image, used to set value
+                             `prov:wasGeneratedBy`
+                             network attribute
+        :type docker_image: str
+        :param algo_name: Name of algorithm, used in `description` network
+                          attribute
+        :type algo_name: str
+        :param source_network: Source network, name is used to set name of
+                               network returned by this method
+        :type source_network: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :return: Empty network except for network attributes
+        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        """
+
+        cust_params = ''
+        if arguments is not None:
+            for a in arguments.keys():
+                cust_params += a + ' '
+                if arguments[a] is not None:
+                    cust_params += arguments[a] + ' '
+
+        src_network_name = self._get_network_name(source_network)
+        hier_net = NiceCXNetwork()
+        hier_net.set_name(algo_name + '_(none)_' + src_network_name)
+        hier_net.set_network_attribute('__CD_OriginalNetwork',
+                                       values='0', type='long')
+        hier_net.set_network_attribute('description',
+                                       values='Original network: ' +
+                                              src_network_name +
+                                              '\n ' +
+                                              'Algorithm used for '
+                                              'community detection: ' +
+                                              algo_name + '\n ' +
+                                              'Edge table column used '
+                                              'as weight: (none)\n ' +
+                                              'CustomParameters: {' +
+                                              cust_params + '}')
+        hier_net.set_network_attribute('prov:wasDerivedFrom',
+                                       values=src_network_name)
+        hier_net.set_network_attribute('prov:wasGeneratedBy',
+                                       values='cdapsutil ' +
+                                              cdapsutil.__version__ + ' ' +
+                                              'Docker image: ' + docker_image)
+        return hier_net
+
+    def _add_custom_annotations(self, net_cx=None,
+                                nodes_dict=None,
+                                res_as_json=None):
+        """
+        Adds any custom annotations to nodes from community
+        detection result which would be stored under 'nodeAttributesAsCX2'
+        and 'nodes' under 'result' of json
+
+        :param net_cx:
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param res_as_json:
+        :type res_as_json: dict
+        :return: None
+        """
+        if 'nodeAttributesAsCX2' not in res_as_json:
+            return
+        n_a_d = dict()
+        attr_dec = res_as_json['nodeAttributesAsCX2']['attributeDeclarations']
+        for entry in attr_dec:
+            if 'nodes' not in entry:
+                continue
+            for key in entry['nodes'].keys():
+                n_a_d[entry['nodes'][key]['a']] = (key,
+                                                   entry['nodes'][key]['v'],
+                                                   entry['nodes'][key]['d'])
+
+        for entry in res_as_json['nodeAttributesAsCX2']['nodes']:
+            node_id = nodes_dict[entry['id']]
+            for n_alias in entry['v'].keys():
+                attr_name, attr_value, attr_type = n_a_d[n_alias]
+                net_cx.add_node_attribute(property_of=node_id,
+                                          name=attr_name,
+                                          values=str(entry['v'][n_alias]),
+                                          type=attr_type)
+
+    def create_network(self, docker_image=None,
+                       algo_name=None,
+                       net_cx=None,
+                       cluster_members=None,
+                       clusters_dict=None,
+                       res_as_json=None,
+                       arguments=None):
+        """
+        Takes `result` output from docker and source network `net_cx` to
+        create a complete hierarchy that is similar to result from
+        CDAPS Cytoscape App
+
+        :param docker_image: Docker image
+        :type docker_image: str
+        :param algo_name: Name of algorithm
+        :type algo_name: str
+        :param net_cx: Source parent network
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param result: JSON data of result from running docker image
+        :type result: str
+        :param arguments: User arguments passed to docker
+        :type arguments: list
+        :return: Complete hierarchy network that is similar to the one
+                 generated in CDAPS Cytoscape App
+        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        """
+
+        node_dict = self._get_node_dictionary(net_cx)
+        hier_net = self._create_empty_hierarchy_network(docker_image=docker_image,
+                                                        algo_name=algo_name,
+                                                        source_network=net_cx,
+                                                        arguments=arguments)
+
+        # this is a map of cluster id => node id in hierarchy network
+        cluster_nodes_dict = dict()
+
+        # create nodes for clusters
+        for source in clusters_dict:
+            if source not in cluster_nodes_dict:
+                node_id = hier_net.create_node('C' + str(source))
+                cluster_nodes_dict[source] = node_id
+            for target in clusters_dict[source]:
+                if target not in cluster_nodes_dict:
+                    node_id = hier_net.create_node('C' + str(target))
+                    cluster_nodes_dict[target] = node_id
+                # create edge connecting clusters
+                hier_net.create_edge(edge_source=cluster_nodes_dict[source],
+                                     edge_target=cluster_nodes_dict[target])
+
+        # create dict where key is cluster node id and value
+        # is a set of member node names storing them in updated_nodes_dict
+        updated_nodes_dict = dict()
+        for node in cluster_members.keys():
+            mem_set = set()
+            for cnode in cluster_members[node]:
+                mem_set.add(node_dict[cnode])
+            updated_nodes_dict[cluster_nodes_dict[node]] = mem_set
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug('updated_nodes_dict: ' + str(updated_nodes_dict))
+
+        # iterate through all the nodes in the hierarchy and add the member
+        # nodes along with necessary statistics
+        for node_id, node_obj in hier_net.get_nodes():
+            if node_id in updated_nodes_dict:
+                member_list_size = len(updated_nodes_dict[node_id])
+                member_list = ' '.join(updated_nodes_dict[node_id])
+                member_list_logsize = round(math.log(member_list_size) / math.log(2), 3)
+            else:
+                member_list_size = 0
+                member_list = ''
+                member_list_logsize = 0
+
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_MemberList',
+                                        values=member_list)
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_MemberList_Size',
+                                        values=str(member_list_size),
+                                        type='integer')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_Labeled', values=str(False),
+                                        type='boolean')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_MemberList_LogSize',
+                                        values=str(member_list_logsize),
+                                        type='double')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_CommunityName', values='')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers', values='')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers_Size',
+                                        values=str(0),
+                                        type='integer')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers_Overlap',
+                                        values=str(0.0),
+                                        type='double')
+            hier_net.add_node_attribute(property_of=node_id,
+                                        name='CD_AnnotatedMembers_Pvalue',
+                                        values=str(0.0),
+                                        type='double')
+
+        # using raw JSON output add any custom annotations.
+        # Currently used by HiDeF
+        self._add_custom_annotations(net_cx=hier_net,
+                                     nodes_dict=cluster_nodes_dict,
+                                     res_as_json=res_as_json)
+        return hier_net
+
+    @staticmethod
+    def apply_style(net_cx,
+                    style='default_style.cx'):
+        """
+        Applies default hierarchy style to network
+
+        :param net_cx: Network to update style on
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param style: Path to CX file with style to use
+        :type style: str
+        :return: None
+        """
+        # TODO: needs to be done for cx2 differently, probably need cx2 style file
+        if os.path.isfile(style):
+            style_file = style
+        else:
+            style_file = os.path.join(os.path.dirname(__file__), style)
+        style_cx = ndex2.create_nice_cx_from_file(style_file)
+        net_cx.apply_style_from_network(style_cx)
 
 
 class CommunityDetection(object):
@@ -89,90 +379,27 @@ class CommunityDetection(object):
                                           ' : ' + str(out))
 
         LOGGER.debug('Task completed. Generating hierarchy')
-        clusters_dict,\
-            children_dict,\
-            res_as_json = self.\
+        clusters_dict, \
+            children_dict, \
+            res_as_json = self. \
             _derive_hierarchy_from_result(result=out)
 
         flattened_dict = \
             self._flatten_children_dict(clusters_dict=clusters_dict,
                                         children_dict=children_dict)
+        if isinstance(net_cx, NiceCXNetwork):
+            network_helper = CXHierarchyCreatorHelper()
+            hier_net = network_helper.create_network(docker_image=self._runner.get_docker_image(),
+                                                     algo_name=self._runner.get_algorithm_name(),
+                                                     net_cx=net_cx,
+                                                     cluster_members=flattened_dict,
+                                                     clusters_dict=clusters_dict,
+                                                     res_as_json=res_as_json,
+                                                     arguments=arguments)
+            network_helper.apply_style(hier_net)
+        else:
+            hier_net = CX2Network()
 
-        hier_net = self._create_network(docker_image=self._runner.get_docker_image(),
-                                        algo_name=self._runner.get_algorithm_name(),
-                                        net_cx=net_cx,
-                                        cluster_members=flattened_dict,
-                                        clusters_dict=clusters_dict,
-                                        res_as_json=res_as_json,
-                                        arguments=arguments)
-        CommunityDetection._apply_style(hier_net)
-
-        return hier_net
-
-    def _get_network_name(self, net_cx=None):
-        """
-        Gets name of network
-
-        :return: name of network or 'unknown if not set
-        :rtype: str
-        """
-        if net_cx is None:
-            return 'unknown'
-        net_cx_name = net_cx.get_name()
-        if net_cx_name is None:
-            return 'unknown'
-        return net_cx_name
-
-    def _create_empty_hierarchy_network(self, docker_image=None,
-                                        algo_name=None,
-                                        source_network=None,
-                                        arguments=None):
-        """
-        Creates an empty hierarchy network with appropriate network attributes
-
-        :param docker_image: Docker image, used to set value
-                             `prov:wasGeneratedBy`
-                             network attribute
-        :type docker_image: str
-        :param algo_name: Name of algorithm, used in `description` network
-                          attribute
-        :type algo_name: str
-        :param source_network: Source network, name is used to set name of
-                               network returned by this method
-        :type source_network: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :return: Empty network except for network attributes
-        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        """
-
-        cust_params = ''
-        if arguments is not None:
-            for a in arguments.keys():
-                cust_params += a + ' '
-                if arguments[a] is not None:
-                    cust_params += arguments[a] + ' '
-
-        src_network_name = self._get_network_name(source_network)
-        hier_net = NiceCXNetwork()
-        hier_net.set_name(algo_name + '_(none)_' + src_network_name)
-        hier_net.set_network_attribute('__CD_OriginalNetwork',
-                                       values='0', type='long')
-        hier_net.set_network_attribute('description',
-                                       values='Original network: ' +
-                                              src_network_name +
-                                              '\n ' +
-                                              'Algorithm used for '
-                                              'community detection: ' +
-                                              algo_name + '\n ' +
-                                              'Edge table column used '
-                                              'as weight: (none)\n ' +
-                                              'CustomParameters: {' +
-                                              cust_params + '}')
-        hier_net.set_network_attribute('prov:wasDerivedFrom',
-                                       values=src_network_name)
-        hier_net.set_network_attribute('prov:wasGeneratedBy',
-                                       values='cdapsutil ' +
-                                              cdapsutil.__version__ + ' ' +
-                                              'Docker image: ' + docker_image)
         return hier_net
 
     def _flatten_children_dict(self, clusters_dict=None, children_dict=None):
@@ -297,186 +524,3 @@ class CommunityDetection(object):
                     LOGGER.debug('\tChildren => None')
 
         return clusters_dict, children_dict, res_as_json
-
-    def _create_network(self, docker_image=None,
-                        algo_name=None,
-                        net_cx=None,
-                        cluster_members=None,
-                        clusters_dict=None,
-                        res_as_json=None,
-                        arguments=None):
-        """
-        Takes `result` output from docker and source network `net_cx` to
-        create a complete hierarchy that is similar to result from
-        CDAPS Cytoscape App
-
-        :param docker_image: Docker image
-        :type docker_image: str
-        :param algo_name: Name of algorithm
-        :type algo_name: str
-        :param net_cx: Source parent network
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param result: JSON data of result from running docker image
-        :type result: str
-        :param arguments: User arguments passed to docker
-        :type arguments: list
-        :return: Complete hierarchy network that is similar to the one
-                 generated in CDAPS Cytoscape App
-        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        """
-
-        node_dict = CommunityDetection._get_node_dictionary(net_cx)
-        hier_net = self._create_empty_hierarchy_network(docker_image=docker_image,
-                                                        algo_name=algo_name,
-                                                        source_network=net_cx,
-                                                        arguments=arguments)
-
-        # this is a map of cluster id => node id in hierarchy network
-        cluster_nodes_dict = dict()
-
-        # create nodes for clusters
-        for source in clusters_dict:
-            if source not in cluster_nodes_dict:
-                node_id = hier_net.create_node('C' + str(source))
-                cluster_nodes_dict[source] = node_id
-            for target in clusters_dict[source]:
-                if target not in cluster_nodes_dict:
-                    node_id = hier_net.create_node('C' + str(target))
-                    cluster_nodes_dict[target] = node_id
-                # create edge connecting clusters
-                hier_net.create_edge(edge_source=cluster_nodes_dict[source],
-                                     edge_target=cluster_nodes_dict[target])
-
-        # create dict where key is cluster node id and value
-        # is a set of member node names storing them in updated_nodes_dict
-        updated_nodes_dict = dict()
-        for node in cluster_members.keys():
-            mem_set = set()
-            for cnode in cluster_members[node]:
-                mem_set.add(node_dict[cnode])
-            updated_nodes_dict[cluster_nodes_dict[node]] = mem_set
-
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            LOGGER.debug('updated_nodes_dict: ' + str(updated_nodes_dict))
-
-        # iterate through all the nodes in the hierarchy and add the member
-        # nodes along with necessary statistics
-        for node_id, node_obj in hier_net.get_nodes():
-            if node_id in updated_nodes_dict:
-                member_list_size = len(updated_nodes_dict[node_id])
-                member_list = ' '.join(updated_nodes_dict[node_id])
-                member_list_logsize = round(math.log(member_list_size) / math.log(2), 3)
-            else:
-                member_list_size = 0
-                member_list = ''
-                member_list_logsize = 0
-
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_MemberList',
-                                        values=member_list)
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_MemberList_Size',
-                                        values=str(member_list_size),
-                                        type='integer')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_Labeled', values=str(False),
-                                        type='boolean')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_MemberList_LogSize',
-                                        values=str(member_list_logsize),
-                                        type='double')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_CommunityName', values='')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_AnnotatedMembers', values='')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_AnnotatedMembers_Size',
-                                        values=str(0),
-                                        type='integer')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_AnnotatedMembers_Overlap',
-                                        values=str(0.0),
-                                        type='double')
-            hier_net.add_node_attribute(property_of=node_id,
-                                        name='CD_AnnotatedMembers_Pvalue',
-                                        values=str(0.0),
-                                        type='double')
-
-        # using raw JSON output add any custom annotations.
-        # Currently used by HiDeF
-        self._add_custom_annotations(net_cx=hier_net,
-                                     nodes_dict=cluster_nodes_dict,
-                                     res_as_json=res_as_json)
-        return hier_net
-
-    def _add_custom_annotations(self, net_cx=None,
-                                nodes_dict=None,
-                                res_as_json=None):
-        """
-        Adds any custom annotations to nodes from community
-        detection result which would be stored under 'nodeAttributesAsCX2'
-        and 'nodes' under 'result' of json
-
-        :param net_cx:
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param res_as_json:
-        :type res_as_json: dict
-        :return: None
-        """
-        if 'nodeAttributesAsCX2' not in res_as_json:
-            return
-        n_a_d = dict()
-        attr_dec = res_as_json['nodeAttributesAsCX2']['attributeDeclarations']
-        for entry in attr_dec:
-            if 'nodes' not in entry:
-                continue
-            for key in entry['nodes'].keys():
-                n_a_d[entry['nodes'][key]['a']] = (key,
-                                                   entry['nodes'][key]['v'],
-                                                   entry['nodes'][key]['d'])
-
-        for entry in res_as_json['nodeAttributesAsCX2']['nodes']:
-            node_id = nodes_dict[entry['id']]
-            for n_alias in entry['v'].keys():
-                attr_name, attr_value, attr_type = n_a_d[n_alias]
-                net_cx.add_node_attribute(property_of=node_id,
-                                          name=attr_name,
-                                          values=str(entry['v'][n_alias]),
-                                          type=attr_type)
-
-    @staticmethod
-    def _get_node_dictionary(net_cx):
-        """
-        Creates a dictionary from 'net_cx' passed in where
-        key is id of node and value is name of node
-
-        :param net_cx:
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :return: { 'NODEID': NODE_NAME }
-        :rtype: dict
-        """
-        node_id_set = set()
-        node_dict = dict()
-        for node_id, node_obj in net_cx.get_nodes():
-            node_dict[node_id] = node_obj['n']
-            node_id_set.add(node_id)
-        return node_dict
-
-    @staticmethod
-    def _apply_style(net_cx,
-                     style='default_style.cx'):
-        """
-        Applies default hierarchy style to network
-
-        :param net_cx: Network to update style on
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param style: Path to CX file with style to use
-        :type style: str
-        :return: None
-        """
-        if os.path.isfile(style):
-            style_file = style
-        else:
-            style_file = os.path.join(os.path.dirname(__file__), style)
-        style_cx = ndex2.create_nice_cx_from_file(style_file)
-        net_cx.apply_style_from_network(style_cx)

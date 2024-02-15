@@ -18,6 +18,7 @@ import unittest
 import requests_mock
 
 import cdapsutil
+from cdapsutil.cd import CXHierarchyCreatorHelper, HierarchyCreatorHelper
 from cdapsutil.exceptions import CommunityDetectionError
 import ndex2
 
@@ -56,23 +57,23 @@ class TestCommunityDetection(unittest.TestCase):
     def test_get_network_name(self):
         er = cdapsutil.ExternalResultsRunner()
         cd = cdapsutil.CommunityDetection(runner=er)
-
+        helper = HierarchyCreatorHelper()
         # try passing None
-        self.assertEqual('unknown', cd._get_network_name(None))
+        self.assertEqual('unknown', helper._get_network_name(None))
 
         # try network with no call to set_name() made
         net_cx = ndex2.nice_cx_network.NiceCXNetwork()
-        self.assertEqual('unknown', cd._get_network_name(net_cx=net_cx))
+        self.assertEqual('unknown', helper._get_network_name(net_cx=net_cx))
 
         # try network where name set to None
         net_cx = ndex2.nice_cx_network.NiceCXNetwork()
         net_cx.set_name(None)
-        self.assertEqual('unknown', cd._get_network_name(net_cx=net_cx))
+        self.assertEqual('unknown', helper._get_network_name(net_cx=net_cx))
 
         # try network where name set to empty string
         net_cx = ndex2.nice_cx_network.NiceCXNetwork()
         net_cx.set_name('')
-        self.assertEqual('', cd._get_network_name(net_cx=net_cx))
+        self.assertEqual('', helper._get_network_name(net_cx=net_cx))
 
     def test_run_community_detection_with_weight_col(self):
         er = cdapsutil.ExternalResultsRunner()
@@ -213,11 +214,12 @@ class TestCommunityDetection(unittest.TestCase):
         try:
             net_cx = ndex2.nice_cx_network.NiceCXNetwork()
             cd = cdapsutil.CommunityDetection()
-            cd._apply_style(net_cx)
+            helper = CXHierarchyCreatorHelper()
+            helper.apply_style(net_cx)
             res = net_cx.get_opaque_aspect('cyVisualProperties')
             self.assertEqual('network', res[0]['properties_of'])
             net_cx = ndex2.nice_cx_network.NiceCXNetwork()
-            cd._apply_style(net_cx,
+            helper.apply_style(net_cx,
                             style=os.path.join(self.get_data_dir(),
                                                'hiv_human_ppi.cx'))
             altres = net_cx.get_opaque_aspect(('cyVisualProperties'))
@@ -228,7 +230,8 @@ class TestCommunityDetection(unittest.TestCase):
     def test_get_node_dictionary(self):
         net_cx = self.get_human_hiv_as_nice_cx()
         cd = cdapsutil.CommunityDetection()
-        node_dict = cd._get_node_dictionary(net_cx)
+        helper = CXHierarchyCreatorHelper()
+        node_dict = helper._get_node_dictionary(net_cx)
         self.assertEqual(471, len(node_dict))
         self.assertEqual('REV', node_dict[738])
 
