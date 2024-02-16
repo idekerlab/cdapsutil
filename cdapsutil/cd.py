@@ -107,7 +107,7 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         node_id_set = set()
         node_dict = dict()
         for node_id, node_obj in net_cx.get_nodes().items():
-            node_dict[node_id] = node_obj[constants.NODE_NAME_EXPANDED]
+            node_dict[node_id] = node_obj[constants.ASPECT_VALUES][constants.NODE_NAME_EXPANDED]
             node_id_set.add(node_id)
         return node_dict
 
@@ -509,7 +509,7 @@ class CommunityDetection(object):
         specified by **algorithm** parameter on **net_cx** network.
 
         :param net_cx: Network to run community detection on
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork` or :py:class:`ndex2.cx2.CX2Network`
         :param algorithm: Name of algorithm to run. Depending on the
                           :py:class:`~cdapsutil.runner.Runner` used this
                           can be an algorithm name, a file, or a Docker image
@@ -571,7 +571,15 @@ class CommunityDetection(object):
                                                      arguments=arguments)
             network_helper.apply_style(hier_net)
         else:
-            hier_net = CX2Network()
+            network_helper = CX2HierarchyCreatorHelper()
+            hier_net = network_helper.create_network(docker_image=self._runner.get_docker_image(),
+                                                     algo_name=self._runner.get_algorithm_name(),
+                                                     net_cx=net_cx,
+                                                     cluster_members=flattened_dict,
+                                                     clusters_dict=clusters_dict,
+                                                     res_as_json=res_as_json,
+                                                     arguments=arguments)
+            network_helper.apply_style(hier_net)
 
         return hier_net
 
