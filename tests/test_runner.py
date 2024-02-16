@@ -16,6 +16,8 @@ import shutil
 import unittest
 
 import ndex2
+from ndex2.cx2 import NoStyleCXToCX2NetworkFactory
+
 import cdapsutil
 from cdapsutil.runner import Runner
 
@@ -47,12 +49,35 @@ class TestRunner(unittest.TestCase):
             edge_dict[edge_obj['s']].add(edge_obj['t'])
         return edge_dict
 
+    def get_edge_dict_cx2(self, net_cx):
+        edge_dict = {}
+        for edge_id, edge_obj in net_cx.get_edges().items():
+            if edge_obj['s'] not in edge_dict:
+                edge_dict[edge_obj['s']] = set()
+            edge_dict[edge_obj['s']].add(edge_obj['t'])
+        return edge_dict
+
     def test_get_edge_list(self):
         net_cx = self.get_human_hiv_as_nice_cx()
 
         edge_dict = self.get_edge_dict(net_cx)
 
         res = Runner._get_edge_list(net_cx)
+        for entry in res.split('\n'):
+            if len(entry.strip()) == 0:
+                continue
+            splitentry = entry.split('\t')
+            self.assertTrue(int(splitentry[1]) in
+                            edge_dict[int(splitentry[0])])
+
+    def test_get_edge_list_cx2(self):
+        net_cx = self.get_human_hiv_as_nice_cx()
+        fac = NoStyleCXToCX2NetworkFactory()
+        net_cx2 = fac.get_cx2network(net_cx)
+
+        edge_dict = self.get_edge_dict_cx2(net_cx2)
+
+        res = Runner._get_edge_list(net_cx2)
         for entry in res.split('\n'):
             if len(entry.strip()) == 0:
                 continue
@@ -68,6 +93,26 @@ class TestRunner(unittest.TestCase):
             edge_dict = self.get_edge_dict(net_cx)
 
             input_edgelist = Runner._write_edge_list(net_cx, temp_dir)
+            with open(input_edgelist, 'r') as f:
+                for entry in f:
+                    if len(entry.strip()) == 0:
+                        continue
+                    splitentry = entry.split('\t')
+                    self.assertTrue(int(splitentry[1]) in
+                                    edge_dict[int(splitentry[0])])
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_write_edge_list_cx2(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            net_cx = self.get_human_hiv_as_nice_cx()
+            fac = NoStyleCXToCX2NetworkFactory()
+            net_cx2 = fac.get_cx2network(net_cx)
+
+            edge_dict = self.get_edge_dict_cx2(net_cx2)
+
+            input_edgelist = Runner._write_edge_list(net_cx2, temp_dir)
             with open(input_edgelist, 'r') as f:
                 for entry in f:
                     if len(entry.strip()) == 0:
