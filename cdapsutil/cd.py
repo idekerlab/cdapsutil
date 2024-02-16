@@ -83,6 +83,7 @@ class HierarchyCreatorHelper:
         for entry in res_as_json['nodeAttributesAsCX2']['nodes']:
             node_id = nodes_dict[entry['id']]
             for n_alias in entry['v'].keys():
+                print(n_alias)
                 attr_name, attr_value, attr_type = n_a_d[n_alias]
                 net_cx.add_node_attribute(node_id, attr_name, str(entry['v'][n_alias]), attr_type)
 
@@ -172,14 +173,14 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         :param algo_name: Name of algorithm
         :type algo_name: str
         :param net_cx: Source parent network
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :type net_cx: :py:class:`ndex2.cx2.CX2Network`
         :param result: JSON data of result from running docker image
         :type result: str
         :param arguments: User arguments passed to docker
         :type arguments: list
         :return: Complete hierarchy network that is similar to the one
                  generated in CDAPS Cytoscape App
-        :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :rtype: :py:class:`ndex2.cx2.CX2Network`
         """
 
         node_dict = self._get_node_dictionary(net_cx)
