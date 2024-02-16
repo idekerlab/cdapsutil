@@ -178,7 +178,7 @@ class Runner(object):
         **WARNING** `weight_col` parameter is currently ignored
 
         :param net_cx: Network to extract edges from
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork` or :py:class:`ndex2.cx2.CX2Network`
         :param tempdir: Directory to write edge list to
         :type tempdir: str
         :return: Path to edgelist file
@@ -186,7 +186,6 @@ class Runner(object):
         """
         edgelist = os.path.join(tempdir, 'input.edgelist')
         with open(edgelist, 'w') as f:
-            # TODO: done
             if isinstance(net_cx, NiceCXNetwork):
                 for edge_id, edge_obj in net_cx.get_edges():
                     f.write(str(edge_obj['s']) + '\t' + str(edge_obj['t']) + '\n')
@@ -203,13 +202,12 @@ class Runner(object):
         **WARNING** 'weight_col' parameter is currently ignored
 
         :param net_cx: Network to extract edges from
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork` or :py:class:`ndex2.cx2.CX2Network`
         :param weight_col: Name of column to extract weights from
         :type weight_col: str
         :return: Edges in tab delimited format
         :rtype: str
         """
-        # TODO: done
         edgelist = []
         if isinstance(net_cx, NiceCXNetwork):
             for edge_id, edge_obj in net_cx.get_edges():
