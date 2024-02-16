@@ -17,11 +17,11 @@ import unittest
 from unittest.mock import MagicMock
 
 import requests_mock
-from ndex2 import constants
+from ndex2 import constants, NiceCXNetwork
 from ndex2.cx2 import CX2Network
 
 import cdapsutil
-from cdapsutil.cd import CXHierarchyCreatorHelper, HierarchyCreatorHelper, CX2HierarchyCreatorHelper
+from cdapsutil.cd import CXHierarchyCreatorHelper, HierarchyCreatorHelper, CX2HierarchyCreatorHelper, CommunityDetection
 from cdapsutil.exceptions import CommunityDetectionError
 import ndex2
 
@@ -290,6 +290,20 @@ class TestCommunityDetection(unittest.TestCase):
         node_dict = helper._get_node_dictionary(net_cx2)
         self.assertEqual(node_dict, {1: "Node1", 2: "Node2"})
 
+    def test_create_empty_hierarchy_network(self):
+        helper = CXHierarchyCreatorHelper()
+        net_cx = NiceCXNetwork()
+        net_cx.create_node(node_name="Node1")
+        net_cx.create_node(node_name="Node2")
+        hier_net = helper._create_empty_hierarchy_network(
+            docker_image="test_image",
+            algo_name="test_algo",
+            source_network=net_cx,
+            arguments={"param1": "value1"}
+        )
+        self.assertIsInstance(hier_net, NiceCXNetwork)
+        self.assertTrue(hier_net.get_network_attribute('name').get('v').startswith("test_algo"))
+
     def test_create_empty_hierarchy_network_cx2(self):
         helper = CX2HierarchyCreatorHelper()
         net_cx2 = CX2Network()
@@ -302,10 +316,34 @@ class TestCommunityDetection(unittest.TestCase):
             arguments={"param1": "value1"}
         )
         self.assertIsInstance(hier_net, CX2Network)
-        print(hier_net.get_network_attributes())
         self.assertTrue((hier_net.get_network_attributes()['name']).startswith("test_algo"))
 
-    def test_create_network_basic(self):
+    def test_create_network(self):
+        helper = CXHierarchyCreatorHelper()
+        net_cx = NiceCXNetwork()
+        net_cx.create_node(node_name="Node1")
+        net_cx.create_node(node_name="Node2")
+        clusters_dict = {0: [1]}
+        cluster_members = {0: [0], 1: [1]}
+        res_as_json = {
+            "nodeAttributesAsCX2": {
+                "attributeDeclarations": [],
+                "nodes": []
+            }
+        }
+        hier_net = helper.create_network(
+            docker_image="docker_test_image",
+            algo_name="test_algorithm",
+            net_cx=net_cx,
+            cluster_members=cluster_members,
+            clusters_dict=clusters_dict,
+            res_as_json=res_as_json,
+            arguments={"param": "value"}
+        )
+        self.assertEqual(len(hier_net.get_nodes()), 2)
+        self.assertEqual(len(hier_net.get_edges()), 1)
+
+    def test_create_network_cx2(self):
         helper = CX2HierarchyCreatorHelper()
         net_cx2 = CX2Network()
         net_cx2.add_node(attributes={'name': 'Node1'})
