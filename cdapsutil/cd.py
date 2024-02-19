@@ -216,6 +216,14 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         if LOGGER.isEnabledFor(logging.DEBUG):
             LOGGER.debug('updated_nodes_dict: ' + str(updated_nodes_dict))
 
+        # Look for roots and add HCX::isRoot attribute to nodes
+        all_nodes = set(hier_net.get_nodes().keys())
+        targets = set()
+        for edge_id, edge_obj in hier_net.get_edges().items():
+            targets.add(edge_obj['t'])
+        # Source node is not a target of any edge
+        root_nodes = all_nodes.difference(targets)
+
         # iterate through all the nodes in the hierarchy and add the member
         # nodes along with necessary statistics
         for node_id, node_obj in hier_net.get_nodes().items():
@@ -237,6 +245,12 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
             hier_net.add_node_attribute(node_id, 'CD_AnnotatedMembers_Size', str(0), 'integer')
             hier_net.add_node_attribute(node_id, 'CD_AnnotatedMembers_Overlap', str(0.0), 'double')
             hier_net.add_node_attribute(node_id, 'CD_AnnotatedMembers_Pvalue', str(0.0), 'double')
+            hier_net.add_node_attribute(node_id, 'HCX::isRoot', str(node_id in root_nodes).lower(), datatype='boolean')
+            memberlist = hier_net.get_node(node_id).get('v', {}).get('CD_MemberList', []).split(' ')
+            membersids = []
+            for member in memberlist:
+                membersids.append(net_cx.lookup_node_id_by_name(member))
+            hier_net.add_node_attribute(node_id, 'HCX::members', membersids, datatype='list_of_integer')
 
         # using raw JSON output add any custom annotations.
         # Currently used by HiDeF
