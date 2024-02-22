@@ -115,7 +115,7 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
     def _create_empty_hierarchy_network(self, docker_image=None,
                                         algo_name=None,
                                         source_network=None,
-                                        arguments=None):
+                                        arguments=None, uuid=None):
         """
         Creates an empty hierarchy network with appropriate network attributes
 
@@ -154,6 +154,12 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
                                        'cdapsutil ' +
                                        cdapsutil.__version__ + ' ' +
                                        'Docker image: ' + docker_image)
+        hier_net.add_network_attribute('ndexSchema', 'hierarchy_v0.1', 'string')
+        hier_net.add_network_attribute('HCX::modelFileCount', '2', 'integer')
+        if uuid:
+            hier_net.add_network_attribute('HCX::interactionNetworkUUID', uuid)
+        else:
+            hier_net.add_network_attribute('HCX::interactionNetworkName', source_network.get_name(), 'string')
         return hier_net
 
     def create_network(self, docker_image=None,
@@ -162,7 +168,8 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
                        cluster_members=None,
                        clusters_dict=None,
                        res_as_json=None,
-                       arguments=None):
+                       arguments=None,
+                       uuid=None):
         """
         Takes `result` output from docker and source network `net_cx` to
         create a complete hierarchy that is similar to result from
@@ -174,10 +181,13 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         :type algo_name: str
         :param net_cx: Source parent network
         :type net_cx: :py:class:`ndex2.cx2.CX2Network`
-        :param result: JSON data of result from running docker image
-        :type result: str
+        :param res_as_json: JSON data of result from running docker image
+        :type res_as_json: str
         :param arguments: User arguments passed to docker
         :type arguments: list
+        :param uuid: UUID of the network (parent network of the hierarchy to be build) that is used to add HCX
+                        annotation
+        :type uuid: str
         :return: Complete hierarchy network that is similar to the one
                  generated in CDAPS Cytoscape App
         :rtype: :py:class:`ndex2.cx2.CX2Network`
@@ -187,7 +197,8 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         hier_net = self._create_empty_hierarchy_network(docker_image=docker_image,
                                                         algo_name=algo_name,
                                                         source_network=net_cx,
-                                                        arguments=arguments)
+                                                        arguments=arguments,
+                                                        uuid=uuid)
 
         # this is a map of cluster id => node id in hierarchy network
         cluster_nodes_dict = dict()
@@ -367,7 +378,8 @@ class CXHierarchyCreatorHelper(HierarchyCreatorHelper):
                        cluster_members=None,
                        clusters_dict=None,
                        res_as_json=None,
-                       arguments=None):
+                       arguments=None,
+                       uuid=None):
         """
         Takes `result` output from docker and source network `net_cx` to
         create a complete hierarchy that is similar to result from
@@ -518,7 +530,8 @@ class CommunityDetection(object):
                                 temp_dir=None,
                                 arguments=None,
                                 weight_col=None,
-                                default_weight=None):
+                                default_weight=None,
+                                uuid=None):
         """
         Generates hierarchy network by running community detection algorithm
         specified by **algorithm** parameter on **net_cx** network.
@@ -547,6 +560,9 @@ class CommunityDetection(object):
                                yet supported and will raise a
                                :py:class:`~cdapsutil.exceptions.CommunityDetectionError`
         :type default_weight: float
+        :param uuid: UUID of the network (parent network of the hierarchy to be build) that is used to add HCX
+                        annotation. WARNING: The tool does not perform a check if the uuid is correct.
+        :type uuid: str
         :raises CommunityDetectionError: If there was an error running the
                                          algorithm or if `weight_col` parameter
                                          is set which is not yet supported
@@ -583,7 +599,8 @@ class CommunityDetection(object):
                                                      cluster_members=flattened_dict,
                                                      clusters_dict=clusters_dict,
                                                      res_as_json=res_as_json,
-                                                     arguments=arguments)
+                                                     arguments=arguments,
+                                                     uuid=uuid)
             network_helper.apply_style(hier_net)
         else:
             network_helper = CX2HierarchyCreatorHelper()
@@ -593,7 +610,8 @@ class CommunityDetection(object):
                                                      cluster_members=flattened_dict,
                                                      clusters_dict=clusters_dict,
                                                      res_as_json=res_as_json,
-                                                     arguments=arguments)
+                                                     arguments=arguments,
+                                                     uuid=uuid)
             network_helper.apply_style(hier_net)
 
         return hier_net
