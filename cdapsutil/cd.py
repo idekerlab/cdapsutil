@@ -251,7 +251,8 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
             hier_net.add_node_attribute(node_id, 'CD_MemberList_Size', str(member_list_size), 'integer')
             hier_net.add_node_attribute(node_id, 'CD_Labeled', str(False), 'boolean')
             hier_net.add_node_attribute(node_id, 'CD_MemberList_LogSize', str(member_list_logsize), 'double')
-            hier_net.add_node_attribute(node_id, 'CD_CommunityName', '')
+            hier_net.add_node_attribute(node_id, 'CD_CommunityName',
+                                        node_obj.get(constants.ASPECT_VALUES, {}).get(constants.NODE_NAME_EXPANDED, ''))
             hier_net.add_node_attribute(node_id, 'CD_AnnotatedMembers', '')
             hier_net.add_node_attribute(node_id, 'CD_AnnotatedMembers_Size', str(0), 'integer')
             hier_net.add_node_attribute(node_id, 'CD_AnnotatedMembers_Overlap', str(0.0), 'double')
