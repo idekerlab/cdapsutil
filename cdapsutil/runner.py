@@ -6,7 +6,6 @@ import logging
 import json
 import time
 import requests
-from ndex2.cx2 import CX2Network
 from ndex2.nice_cx_network import NiceCXNetwork
 
 import cdapsutil
@@ -20,42 +19,11 @@ def _cur_time_in_seconds():
     return int(round(time.time()))
 
 
-def _run_functional_enrichment_docker(docker_dict):
-    """
-    Function that runs docker dumping results to
-    file path specified by docker_dict['outfile']
-
-    {'index': counter,
-     'node_id': node_id,
-     'outfile': <output file, must be in temp_dir>,
-     'image': <docker_image>,
-     'arguments': <list of arguments>,
-     'temp_dir': <temp directory where input data resides and output will be written>,
-     'docker_runner': <instance of DockerRunner class>}
-
-    :param docker_dict: {'outfile': <PATH WHERE OUTPUT RESULT SHOULD BE WRITTEN>}
-    :type docker_dict: dict
-    :return: None
-
-    """
-    start_time = _cur_time_in_seconds()
-    drunner = docker_dict['docker_runner']
-    e_code, out, err = drunner.submit(algorithm=docker_dict['image'],
-                                      temp_dir=docker_dict['temp_dir'],
-                                      arguments=docker_dict['arguments'])
-    res = dict()
-    res['e_code'] = e_code
-    res['out'] = out.decode('utf-8')
-    res['err'] = err.decode('utf-8')
-    res['elapsed_time'] = _cur_time_in_seconds() - start_time
-    with open(docker_dict['outfile'], 'w') as f:
-        json.dump(res, f)
-
-
 class ProcessWrapper(object):
     """
     Runs command line process
     """
+
     def __init__(self):
         """
         Constructor
@@ -150,7 +118,7 @@ class Runner(object):
         """
         raise CommunityDetectionError('Not implemented for this Runner')
 
-    def run(self, net_cx=None, algorithm=None, arguments=None, temp_dir=None):
+    def run(self, net_cx=None, algorithm=None, arguments=None, temp_dir=None, gene_set=None):
         """
         Must be implemented by subclasses. Will always raise
         :py:class:`cdapsutil.exceptions.CommunityDetectionError`
@@ -164,6 +132,8 @@ class Runner(object):
                           value to ``None``
                           Example: ``{'--flag': None, '--cutoff': '0.2'}``
         :param temp_dir:
+        :param gene_set: Gene Set
+        :type gene_set:
         :raises CommunityDetectionError: Will always raise this
         :return: None
         """
@@ -255,8 +225,8 @@ class ServiceRunner(Runner):
         super().__init__()
 
         self._service_endpoint = service_endpoint
-        self._requests_timeout=requests_timeout
-        self._useragent = 'cdapsutil/' +\
+        self._requests_timeout = requests_timeout
+        self._useragent = 'cdapsutil/' + \
                           str(cdapsutil.__version__)
         self._max_retries = max_retries
         self._poll_interval = poll_interval
@@ -284,14 +254,14 @@ class ServiceRunner(Runner):
         return e_code, resp_as_json['result'], resp_as_json['message']
 
     def run(self, net_cx=None, algorithm=None, arguments=None,
-            temp_dir=None):
+            temp_dir=None, gene_set=None):
         """
         Runs 'algorithm' via `CDAPS service <https://cdaps.readthedocs.io/>`__
         with error code, standard out and standard error derived
         from the service call
 
         :param net_cx: Network to use as input
-        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork` or
         :param algorithm: Algorithm to run
         :type algorithm: str
         :param arguments: Any custom parameters for algorithm. The
@@ -302,20 +272,25 @@ class ServiceRunner(Runner):
         :type arguments: dict
         :param temp_dir: Ignored
         :type temp_dir: str
+        :param gene_set: Gene Set
+        :type gene_set:
         :raises CommunityDetectionError: If there is an error in running job
                                          outside of non-zero exit code from
                                          command
         :return: (return code, stdout from subprocess, stderr from subprocess)
         :rtype: tuple
         """
-        edgelist = self._get_edge_list(net_cx)
-        task_id = self.submit(algorithm=algorithm, data=edgelist,
+        data = gene_set
+        if gene_set is None:
+            edgelist = self._get_edge_list(net_cx)
+            data = edgelist
+        task_id = self.submit(algorithm=algorithm, data=data,
                               arguments=arguments)['id']
         LOGGER.debug('Waiting for task ' + str(task_id) + ' to complete')
         self.set_algorithm_name(algorithm)
         self.wait_for_task_to_complete(task_id,
-                                                max_retries=self._max_retries,
-                                                poll_interval=self._poll_interval)
+                                       max_retries=self._max_retries,
+                                       poll_interval=self._poll_interval)
         resp_as_json = self.get_result(task_id)
         if resp_as_json['status'] != 'complete':
             CommunityDetectionError('Error running algorithm. '
@@ -494,7 +469,6 @@ class ServiceRunner(Runner):
                                 headers=self._get_user_agent_header(),
                                 timeout=self._requests_timeout)
             if resp.status_code != 200:
-
                 raise CommunityDetectionError('Received ' + str(resp.status_code) +
                                               ' HTTP response status code : ' +
                                               str(resp.text))
@@ -601,6 +575,7 @@ class DockerRunner(Runner):
     :param processwrapper: Object to run external process
     :type processwrapper: :py:class:`ProcessWrapper`
     """
+
     def __init__(self, binary_path='docker',
                  processwrapper=ProcessWrapper()):
         """
@@ -611,7 +586,7 @@ class DockerRunner(Runner):
         self._procwrapper = processwrapper
 
     def run(self, net_cx=None, algorithm=None, arguments=None,
-            temp_dir=None):
+            temp_dir=None, gene_set=None):
         """
         Runs `Docker <https://docker.com>`__ command returning a tuple
         with error code, standard out and standard error
@@ -631,6 +606,8 @@ class DockerRunner(Runner):
                          access when `-v X:X` flag is added to docker
                          command
         :type temp_dir: str
+        :param gene_set: Gene Set
+        :type gene_set:
         :raises CommunityDetectionError: If there is an error in running job
                                          outside of non-zero exit code from
                                          command
@@ -673,6 +650,7 @@ class ExternalResultsRunner(Runner):
     This allows results generated externally to be processed.
 
     """
+
     def __init__(self):
         """
         Constructor
@@ -680,7 +658,7 @@ class ExternalResultsRunner(Runner):
         super().__init__()
 
     def run(self, net_cx=None, algorithm=None, arguments=None,
-            temp_dir=None):
+            temp_dir=None, gene_set=None):
         """
         Assumes `algorithm` contains path to file with result of invocation
         of algorithm. This allows for externally run algorithms to be
@@ -703,6 +681,8 @@ class ExternalResultsRunner(Runner):
         :type arguments: dict
         :param temp_dir: Ignored
         :type temp_dir: str
+        :param gene_set: Gene Set
+        :type gene_set:
         :raises CommunityDetectionError: If there is an error in running job
                                          outside of non-zero exit code from
                                          command
