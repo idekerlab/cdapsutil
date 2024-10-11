@@ -8,10 +8,11 @@ python:
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install:
   - pip install -r requirements.txt
+  - pip install requests_mock
   - pip install coveralls
 
 # command to run tests, e.g. python setup.py test
 script:
-  - coverage run --source cdapsutil setup.py test
+  - coverage run --source cdapsutil -m unittest discover
 
 
