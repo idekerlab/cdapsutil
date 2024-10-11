@@ -181,10 +181,14 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         :type algo_name: str
         :param net_cx: Source parent network
         :type net_cx: :py:class:`ndex2.cx2.CX2Network`
+        :param cluster_members:
+        :type cluster_members:
+        :param clusters_dict:
+        :type clusters_dict: dict
         :param res_as_json: JSON data of result from running docker image
-        :type res_as_json: str
+        :type res_as_json: dict
         :param arguments: User arguments passed to docker
-        :type arguments: list
+        :type arguments: dict
         :param uuid: UUID of the network (parent network of the hierarchy to be build) that is used to add HCX
                         annotation
         :type uuid: str
@@ -392,13 +396,19 @@ class CXHierarchyCreatorHelper(HierarchyCreatorHelper):
         :type algo_name: str
         :param net_cx: Source parent network
         :type net_cx: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
-        :param result: JSON data of result from running docker image
-        :type result: str
+        :param cluster_members:
+        :type cluster_members:
+        :param clusters_dict:
+        :type clusters_dict: dict
+        :param res_as_json: JSON data of result from running docker image
+        :type res_as_json: dict
         :param arguments: User arguments passed to docker
-        :type arguments: list
+        :type arguments: dict
         :return: Complete hierarchy network that is similar to the one
                  generated in CDAPS Cytoscape App
         :rtype: :py:class:`ndex2.nice_cx_network.NiceCXNetwork`
+        :param uuid: UUID of the network (parent network of the hierarchy to be build)
+        :type uuid: str
         """
 
         node_dict = self._get_node_dictionary(net_cx)
