@@ -83,7 +83,6 @@ class HierarchyCreatorHelper:
         for entry in res_as_json['nodeAttributesAsCX2']['nodes']:
             node_id = nodes_dict[entry['id']]
             for n_alias in entry['v'].keys():
-                print(n_alias)
                 attr_name, attr_value, attr_type = n_a_d[n_alias]
                 net_cx.add_node_attribute(node_id, attr_name, str(entry['v'][n_alias]), attr_type)
 
@@ -253,7 +252,7 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
 
             hier_net.add_node_attribute(node_id, 'CD_MemberList', member_list)
             hier_net.add_node_attribute(node_id, 'CD_MemberList_Size', str(member_list_size), 'integer')
-            hier_net.add_node_attribute(node_id, 'CD_Labeled', str(False), 'boolean')
+            hier_net.add_node_attribute(node_id, 'CD_Labeled', str(True), 'boolean')
             hier_net.add_node_attribute(node_id, 'CD_MemberList_LogSize', str(member_list_logsize), 'double')
             hier_net.add_node_attribute(node_id, 'CD_CommunityName',
                                         node_obj.get(constants.ASPECT_VALUES, {}).get(constants.NODE_NAME_EXPANDED, ''))
@@ -295,16 +294,7 @@ class CX2HierarchyCreatorHelper(HierarchyCreatorHelper):
         style_net = factory.get_cx2network(style_file)
 
         vis_prop = style_net.get_visual_properties()
-        node_bypasses = style_net.get_node_bypasses()
-        edge_bypasses = style_net.get_edge_bypasses()
-        opaque_aspect = style_net.get_opaque_aspects()
-
         net_cx.set_visual_properties(vis_prop)
-        for node_id, bp in node_bypasses:
-            net_cx.add_node_bypass(node_id, bp)
-        for edge_id, bp in edge_bypasses:
-            net_cx.add_edge_bypass(edge_id, bp)
-        net_cx.set_opaque_aspects(opaque_aspect)
 
 
 class CXHierarchyCreatorHelper(HierarchyCreatorHelper):
@@ -604,26 +594,17 @@ class CommunityDetection(object):
                                         children_dict=children_dict)
         if isinstance(net_cx, NiceCXNetwork):
             network_helper = CXHierarchyCreatorHelper()
-            hier_net = network_helper.create_network(docker_image=self._runner.get_docker_image(),
-                                                     algo_name=self._runner.get_algorithm_name(),
-                                                     net_cx=net_cx,
-                                                     cluster_members=flattened_dict,
-                                                     clusters_dict=clusters_dict,
-                                                     res_as_json=res_as_json,
-                                                     arguments=arguments,
-                                                     uuid=uuid)
-            network_helper.apply_style(hier_net)
         else:
             network_helper = CX2HierarchyCreatorHelper()
-            hier_net = network_helper.create_network(docker_image=self._runner.get_docker_image(),
-                                                     algo_name=self._runner.get_algorithm_name(),
-                                                     net_cx=net_cx,
-                                                     cluster_members=flattened_dict,
-                                                     clusters_dict=clusters_dict,
-                                                     res_as_json=res_as_json,
-                                                     arguments=arguments,
-                                                     uuid=uuid)
-            network_helper.apply_style(hier_net)
+        hier_net = network_helper.create_network(docker_image=self._runner.get_docker_image(),
+                                                 algo_name=self._runner.get_algorithm_name(),
+                                                 net_cx=net_cx,
+                                                 cluster_members=flattened_dict,
+                                                 clusters_dict=clusters_dict,
+                                                 res_as_json=res_as_json,
+                                                 arguments=arguments,
+                                                 uuid=uuid)
+        network_helper.apply_style(hier_net)
 
         return hier_net
 
