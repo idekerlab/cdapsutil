@@ -2,7 +2,7 @@
 History
 =======
 
-0.3.0 (2024-10-11)
+0.3.0 (2024-10-14)
 ----------------------
 
 * Added support to run community detection on CX2 networks and generate HCX hierarchy
